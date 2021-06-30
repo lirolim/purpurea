@@ -1,0 +1,22 @@
+# Use `make -f makefileRUN -j4`, where j4 is the number of parallel process
+# The options below can be overwritten without editing the file by using:
+# - `make -f makefileRUN -j4 FOLDER=parameter`: alter folder where .lsd is
+# - `make -f makefileRUN -j4 LSD="Sim1.lsd Sim2.lsd"`: alter files to be used
+#
+# To run the simulation and then turn off the computer, use `make -f makefileRUN -j4 poweroff` 
+
+
+FOLDER = .# default is current directory
+LSD = $(wildcard $(FOLDER)/*.lsd)
+
+RESULT = $(LSD:%.lsd=%.done)
+
+.PHONY: all
+all: $(RESULT)
+
+%.done: %.lsd
+	./lsdNW -f $<
+# ./lsdNW -f $< >$<.log 2>&1 # to save log, comment line above and uncomment this line
+
+poweroff: all
+	sudo poweroff

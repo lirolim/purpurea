@@ -9,7 +9,7 @@ Help()
 	# Display help
 	echo "This program reads and edits parameter values in .lsd files, runs the simulation, and creates a PDF report using R. These are the program's options: \n"
 	echo "\n -b: Alter base name for .lsd file (default is Sim1). The .lsd termination must not be included."
-	echo "\n -f: Alter folder in which .lsd is saved (default is current folder)."
+	echo "\n -d: Alter directory in which .lsd is saved (default is current folder). The simulation results and R report will be saved in this directory (if -r option is enabled)."
 	echo "\n -a: Read the .lsd file (all parameters). All parameters will be listed twice: they are first declared and then their value is reported."
 	echo "\n -c: Consult the exact name of a parameter by adding its beginning. Required argument: <parameter_name>. All parameters will be listed twice: they are first declared and then their value is reported."
 	echo "\n -v: Read the .lsd file (specific parameters). Required argument: <parameter_name>. For reading more than one parameter at the same time, use the -v <parameter_name> option multiple times."
@@ -17,10 +17,11 @@ Help()
 	echo "\n -p: Alter number of simulation periods. Required argument: <max_period>"
 	echo "\n -m: Alter number of simulation runs (for MC analysis). Required argument: <number_mc>."
 	echo "\n -s: Alter initial seed. Required argument: <seed>."
+	echo "\n -u: Alter number of processing units to be used (default is the maximum number of processing units). Required argument: <number_cpus>. "
 	echo "\n -n: Recompile the NW version of the LSD model (required if the .cpp or .hpp codes were altered)."
 	echo "\n -r: Run the simulation and create the R report."
 	echo "\n -h: Help and quit."
-	echo "\n Regardless of the order in which the options listed above are included in the command, the program always executes the selected options in the following order: -h -f -b -a -c -v -e -p -m -s -n -r."
+	echo "\n Regardless of the order in which the options listed above are included in the command, the program always executes the selected options in the following order: -h -d -b -u -a -c -v -e -p -m -s -n -r."
 	echo "\n Note that while this program makes the calibration and simulation processes in LSD more efficient, it does require a good knowledge of the model structure (described by the .lsd file) and its parameters. Thus, it is highly recommended that the user is familiarized with the LSD interface and that (s)he uses a repository (such as github) to track changes in the .lsd file. Note also that the program cannot create new variables or parameters in the .lsd file, it can only read the existing model structure and alter the parameter values."
 }
 
@@ -33,9 +34,10 @@ echo "\n === Purpurea: LSD in the background === \n"
 
 ### create default variable values and empty variables ###
 
+MAINDIR="$PWD"
 BASE="Sim1"
 BASECHANGE=
-FOLDER=
+BASEDIR=
 READBASE=
 CURRENT=
 PARAMCONSULT=
@@ -44,24 +46,28 @@ PARAMCHANGE=
 PERIODS=
 SEED=
 MONTECARLO=
+UNIT=$(nproc)
 RECOMPILE= 
 RUN=
 
 ### collect information from options and arguments in command ###
 
-while getopts "hf:b:ac:v:e:nm:p:s:r" option; do # read options included in the command line, create a list and loop through the list 
+while getopts "hd:b:u:ac:v:e:nm:p:s:r" option; do # read options included in the command line, create a list and loop through the list 
 	case $option in 
 
 		h) # display help
 			Help
 			exit 0;; # quits the program, no additional option is checked.
 
-		f) # alter folder  
-			FOLDER=$OPTARG;;
+		d) # alter directory  
+			BASEDIR=$OPTARG;;
 
 		b) # base file
 			BASE=$OPTARG
 			BASECHANGE=1;;
+
+		u) # alter number of processing units
+			UNIT=$OPTARG;;
 
 		a) # read all parameters
 			READBASE=1;;
@@ -101,9 +107,11 @@ done
 
 # declare folder (if specified by user, otherwise current directory is used)
 
-if [ "$FOLDER" ]; then
-	echo "Folder is $FOLDER \n"
-	cd "$FOLDER"
+if [ "$BASEDIR" ]; then
+	echo "Directory is $BASEDIR \n"
+	set -e 
+	cd "$BASEDIR"
+	set +e
 fi
 
 # declare base file (if altered by user)
@@ -217,8 +225,7 @@ if [ "$RECOMPILE" ] ; then
 
 	set -e # errors will exit script
 
-	make -f makefileNW 
-	#make -f makefileNW SWITCH_CC_NW="-w -O3 -g0 -std=gnu++14"  -j4
+	make -f makefileNW -j$UNIT
 fi
 
 # runs simulation
@@ -231,33 +238,33 @@ if [ "$RUN" ] ; then
 		MONTECARLOTXT=$(sed -n '/SIM_NUM/'p "$BASE.lsd") 
 		SEEDTXT=$(awk '/SEED/ {print $NF}' "$BASE.lsd")
 
-	if [ "$FOLDER" ] ; then
-		cd .. # go back to main folder
-		make -f makefileRUN -j1 LSD="$FOLDER/$BASE.lsd"  
+	if [ "$BASEDIR" ] ; then
+		cd "$MAINDIR" # go back to main directory
+		make -f makefileRUN -j$UNIT LSD="$BASEDIR/$BASE.lsd"  
 	else
-		make -f makefileRUN -j1 LSD="$BASE.lsd" 
+		make -f makefileRUN -j$UNIT LSD="$BASE.lsd" 
 	fi
 
 	echo "Finished simulation. R script will be processed... \n "
 
 	if [ "$MONTECARLOTXT" = "SIM_NUM 1" ] ; then
-		Rscript analysis_results_single.R $BASE $SEEDTXT $FOLDER 
+		Rscript analysis_results_single.R $BASE $SEEDTXT $BASEDIR 
 
 		echo "Finished R files, PDF file will open."
 		
-		if [ "$FOLDER" ] ; then
-			xdg-open "$FOLDER"/"$BASE"_single_plots.pdf	
+		if [ "$BASEDIR" ] ; then
+			xdg-open "$BASEDIR"/"$BASE"_single_plots.pdf	
 		else
 			xdg-open "$BASE"_single_plots.pdf	
 		fi
 
 	else
-		Rscript analysis_results_mc.R $BASE $FOLDER # file yet to be created
+		Rscript analysis_results_mc.R $BASE $BASEDIR # file yet to be created
 
 		echo "Finished R files, PDF file will open."
 
-		if [ "$FOLDER" ] ; then
-			xdg-open "$FOLDER"/"$BASE"_mc_plots.pdf	
+		if [ "$BASEDIR" ] ; then
+			xdg-open "$BASEDIR"/"$BASE"_mc_plots.pdf	
 		else
 			xdg-open "$BASE"_mc_plots.pdf	
 		fi

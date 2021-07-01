@@ -13,18 +13,17 @@ Help()
 	echo "\n -a: Read the .lsd file (all parameters). All parameters will be listed twice: they are first declared and then their value is reported."
 	echo "\n -c: Consult the exact name of a parameter by adding its beginning. Required argument: <parameter_name>. All parameters will be listed twice: they are first declared and then their value is reported."
 	echo "\n -v: Read the .lsd file (specific parameters). Required argument: <parameter_name>. For reading more than one parameter at the same time, use the -v <parameter_name> option multiple times."
-	echo "\n -e: Edit a parameter value. Required argument: <parameter_name>. The program will show the current parameter value and will ask the user for its new value. In addition to editing the .lsd file, this option also saves the user's changes into a log .txt file. After changing the file, the new information is shown - if there is a mistake, there may have been a mistake in the <parameter_name> entry. The exact name of the parameter is required: the program may find the parameter if the name is incomplete, but it will not change the parameter properly. For changing more than one parameter with the same command, use the -e <parameter_name> option multiple times. Note that the .lsd's definitions of parameters are not updated.   "
+	echo "\n -e: Edit a parameter value. Required argument: <parameter_name>. The program will show the current parameter value and will ask the user for its new value. In addition to editing the .lsd file, this option also saves the user's changes into .log file. After changing the file, the new information is shown - if there is a mistake, there may have been a mistake in the <parameter_name> entry. The exact name of the parameter is required: the program may find the parameter if the name is incomplete, but it will not change the parameter properly. For changing more than one parameter with the same command, use the -e <parameter_name> option multiple times. Note that the .lsd's definitions of parameters are not updated.   "
 	echo "\n -p: Alter number of simulation periods. Required argument: <max_period>"
 	echo "\n -m: Alter number of simulation runs (for MC analysis). Required argument: <number_mc>."
 	echo "\n -s: Alter initial seed. Required argument: <seed>."
 	echo "\n -u: Alter number of processing units to be used (default is the maximum number of processing units). Required argument: <number_cpus>. "
 	echo "\n -n: Recompile the NW version of the LSD model (required if the .cpp or .hpp codes were altered)."
-	echo "\n -r: Run the simulation and create the R report. By default, this option runs the .lsd file declared in the -b option or, if -b is not used, the default .lsd file. To run more than one experiment (that is, more than one .lsd file), use the option '-r <all>'. All files in the directory will be run."
+	echo "\n -r: Run the simulation and create the R report. By default, this option runs the .lsd file declared in the -b option or, if -b is not used, the default .lsd file. To run more than one experiment (that is, more than one .lsd file), use the optional argument '<all>'. All .lsd files in the directory will be run. Note that R only works properly if the experiments share the same base name (eg. Sim) and are followed by an integer (eg. Sim1, Sim2)."
 	echo "\n -h: Help and quit."
 	echo "\n Regardless of the order in which the options listed above are included in the command, the program always executes the selected options in the following order: -h -d -b -u -a -c -v -e -p -m -s -n -r."
 	echo "\n Note that while this program makes the calibration and simulation processes in LSD more efficient, it does require a good knowledge of the model structure (described by the .lsd file) and its parameters. Thus, it is highly recommended that the user is familiarized with the LSD interface and that (s)he uses a repository (such as github) to track changes in the .lsd file. Note also that the program cannot create new variables or parameters in the .lsd file, it can only read the existing model structure and alter the parameter values."
 }
-
 
 ############################################################
 # Main program                                             #
@@ -36,6 +35,7 @@ echo "\n === Purpurea: LSD in the background === \n"
 
 MAINDIR="$PWD"
 BASE="Sim1"
+BASEFULL="Sim1"
 BASECHANGE=
 BASEDIR=
 READBASE=
@@ -47,6 +47,7 @@ PERIODS=
 SEED=
 MONTECARLO=
 UNIT=$(nproc)
+EXPS=1
 RECOMPILE= 
 RUN=
 RUNALL=
@@ -122,9 +123,7 @@ done
 
 if [ "$BASEDIR" ]; then
 	echo "Directory is $BASEDIR \n"
-	set -e 
-	cd "$BASEDIR"
-	set +e
+	BASEFULL="$BASEDIR/$BASE" # update complete address of base file
 fi
 
 # declare base file (if altered by user)
@@ -137,7 +136,7 @@ fi
 
 if [ "$READBASE" ] ; then
 	echo "Displaying all parameters:"
-	grep 'Param: \|Son: ' "$BASE.lsd"
+	grep 'Param: \|Son: ' "$BASEFULL.lsd"
 	echo "\n"
 fi
 
@@ -148,8 +147,8 @@ if [ "$PARAMCONSULT" ] ; then
 	for param in $PARAMCONSULT ; do
 		echo "Searching for parameter names with $param:"
 		
-		if grep -q "Param: $param" "$BASE.lsd"; then # if parameter was found
-			grep "Param: $param" "$BASE.lsd"
+		if grep -q "Param: $param" "$BASEFULL.lsd"; then # if parameter was found
+			grep "Param: $param" "$BASEFULL.lsd"
 			echo "\n"
 		else
 			echo "Parameter $param not found. Try searching for the parameter's initial letters. \n"
@@ -164,10 +163,10 @@ if [ "$PARAMREAD" ] ; then
 
 	for param in $PARAMREAD ; do
 
-		LINE=$(sed -n "/^Param: $param /=" "$BASE.lsd")
+		LINE=$(sed -n "/^Param: $param /=" "$BASEFULL.lsd")
 				
 		if [ "$LINE" ] ; then
-			CURRENT=$(sed -n "$LINE"p "$BASE.lsd")
+			CURRENT=$(sed -n "$LINE"p "$BASEFULL.lsd")
 			echo "Line $LINE | $CURRENT"
 		else
 			echo "$param not found! Please run -v with the correct and complete parameter name. To check a parameter's name, use option -a (all parameters) or option -c <parameter_name_beginning>."
@@ -182,22 +181,22 @@ if [ "$PARAMCHANGE" ] ; then
 	echo "Edit parameter values in $BASE.lsd:"
 	
 	for param in $PARAMCHANGE ; do
-		LINE_CHANGE=$(sed -n "/^Param: $param /=" "$BASE.lsd")
+		LINE_CHANGE=$(sed -n "/^Param: $param /=" "$BASEFULL.lsd")
 		
 		if [ "$LINE_CHANGE" ] ; then
-			CURRENT=$(sed -n "$LINE_CHANGE"p "$BASE.lsd")
+			CURRENT=$(sed -n "$LINE_CHANGE"p "$BASEFULL.lsd")
 			echo "Line $LINE_CHANGE | $CURRENT"
 			echo "Please type new parameter value:" 
 			read VALUE
 
-			sed -i -r "s/^(Param: $param) (.*)([\t ])[0-9\.]+\$/\1 \2\3$VALUE/" "$BASE.lsd"
+			sed -i -r "s/^(Param: $param) (.*)([\t ])[0-9\.]+\$/\1 \2\3$VALUE/" "$BASEFULL.lsd"
 
 			echo "$BASE.lsd has been updated. New entry is:"
-			sed -n "$LINE_CHANGE"p "$BASE.lsd"
+			sed -n "$LINE_CHANGE"p "$BASEFULL.lsd"
 			echo "\n"
 			
 			DATE=$(date)
-			echo "$DATE | $CURRENT | Altered to: $VALUE" >> "calibration$BASE.txt"
+			echo "$DATE | $CURRENT | Altered to: $VALUE" >> "$BASEFULL.log"
 		else
 			echo "$param not found! Please run -e with the correct and complete parameter name. To check a parameter's name, use option -a (all parameters) or option -c <parameter_name_beginning>."
 			exit 3
@@ -208,25 +207,25 @@ fi
 # alter number of periods
 
 if [ "$PERIODS" ] ; then
-	sed -i -r "s/^(MAX_STEP) (.*)/MAX_STEP $PERIODS/" "$BASE.lsd"
+	sed -i -r "s/^(MAX_STEP) (.*)/MAX_STEP $PERIODS/" "$BASEFULL.lsd"
 	echo "\n Number of periods in $BASE.lsd updated:"
-	sed -n '/MAX_STEP/'p "$BASE.lsd"
+	sed -n '/MAX_STEP/'p "$BASEFULL.lsd"
 fi
 
-# alter number of monte carlo runs
+# alter number of monte carlo runs or save information from file
 
 if [ "$MONTECARLO" ] ; then
-	sed -i -r "s/^(SIM_NUM) (.*)/SIM_NUM $MONTECARLO/" "$BASE.lsd"
+	sed -i -r "s/^(SIM_NUM) (.*)/SIM_NUM $MONTECARLO/" "$BASEFULL.lsd"
 	echo "\n Number of monte carlo runs in $BASE.lsd updated:"
-	sed -n '/SIM_NUM/'p "$BASE.lsd"
+	sed -n '/SIM_NUM/'p "$BASEFULL.lsd"
 fi
 
-# alter initial seed
+# alter initial seed or save information from file
 
 if [ "$SEED" ] ; then
-	sed -i -r "s/^(SEED) (.*)/SEED $SEED/" "$BASE.lsd"
+	sed -i -r "s/^(SEED) (.*)/SEED $SEED/" "$BASEFULL.lsd"
 	echo "\n Initial seed in $BASE.lsd has been updated:"
-	sed -n '/SEED/'p "$BASE.lsd"
+	sed -n '/SEED/'p "$BASEFULL.lsd"
 fi
 
 # recompile NW version of model
@@ -245,67 +244,76 @@ fi
 
 if [ "$RUN" ] ; then
 
+	# run simulation files
+
 	echo "\n Start simulation. \n "
 
-	# read key information in file
-		MONTECARLOTXT=$(sed -n '/SIM_NUM/'p "$BASE.lsd") 
-		SEEDTXT=$(awk '/SEED/ {print $NF}' "$BASE.lsd")
 
-	if [ "$BASEDIR" ] ; then
-		cd "$MAINDIR" # go back to main directory
+	if [ "$RUNALL" ] ; then # if multiple experiments
 
-		if [ $RUNALL ] ; then
+		if [ "$BASEDIR" ] ; then
+			EXPS=$(ls -lR $BASEDIR/*.lsd | wc -l) # count number of lsd files
+			
+			if [ "$EXPS" -eq 1 ] ; then		
+				BASE=$(basename "$BASEDIR"/*.lsd .lsd) # update base name
+
+				echo " \n Warning: Only one .lsd file available. Simulation will be treated as a single simulation for $BASE.lsd \n"
+
+				if [ "$BASEDIR" ] ; then
+					BASEFULL="$BASEDIR/$BASE" # update complete address of base file
+				fi
+			fi
+
 			make -f makefileRUN -j$UNIT FOLDER="$BASEDIR"
-			EXPS=$("ls -lR $BASEDIR/*.lsd | wc -l") # count number of lsd files
 		else
-			make -f makefileRUN -j$UNIT LSD="$BASEDIR/$BASE.lsd"  
+			EXPS=$(ls -lR *.lsd | wc -l) # count number of lsd files
+		
+			if [ "$EXPS" -eq 1 ] ; then		
+				BASE=$(basename *.lsd .lsd) # update base name
+
+				echo " \n Warning: Only one .lsd file available. Simulation will be treated as a single simulation for $BASE.lsd \n"
+
+				if [ "$BASEDIR" ] ; then
+					BASEFULL="$BASEDIR/$BASE" # update complete address of base file
+				fi
+			fi
+
+			make -f makefileRUN -j$UNIT
 		fi
 
 	else
-
-		if [ $RUNALL ] ; then
-			make -f makefileRUN -j$UNIT 
-			EXPS=$("ls -lR *.lsd | wc -l") # count number of lsd files
-		else
-			make -f makefileRUN -j$UNIT LSD="$BASE.lsd" 
-		fi
-
+		make -f makefileRUN -j$UNIT LSD="$BASEFULL.lsd" 
 	fi
+
+	# create R report
 
 	echo "Finished simulation. R script will be processed... \n "
+	
+	# update information
 
-	if [ $RUNALL ] ; then
-			Rscript analysis_results_mc.R $BASE $BASEDIR $EXPS
+		MONTECARLO=$(awk '/SIM_NUM/ {print $NF}' "$BASEFULL.lsd")
+		SEED=$(awk '/SEED/ {print $NF}' "$BASEFULL.lsd")
 
-			echo "Finished R files, PDF file will open."
+	# create R report
 
-			if [ "$BASEDIR" ] ; then
-				xdg-open "$BASEDIR"/"$BASE"_mc_plots.pdf	
-			else
-				xdg-open "$BASE"_mc_plots.pdf	
-			fi
-	else
-		if [ "$MONTECARLOTXT" = "SIM_NUM 1" ] ; then
-			Rscript analysis_results_single.R $BASE $SEEDTXT $BASEDIR 
+	if [ "$EXPS" -eq 1 -a "$MONTECARLO" -eq 1 ] ; then
+			Rscript analysis_results_single.R $BASE $SEED $BASEDIR 
 
-			echo "Finished R files, PDF file will open."
+			echo "Finished R report, PDF file will open."
 			
-			if [ "$BASEDIR" ] ; then
-				xdg-open "$BASEDIR"/"$BASE"_single_plots.pdf	
-			else
-				xdg-open "$BASE"_single_plots.pdf	
+			xdg-open "$BASEFULL"_single_plots.pdf	
+	else
+			if [ "$EXPS" != 1 ] ; then # ask the user what is the base name used for the .lsd files (just the part that is kept in all files)
+				echo "Please type the base name for your .lsd files (just the part that is repeated in all files, without .lsd). For instance, if files are Sim1.lsd and Sim2.lsd, the base name is Sim."
+				read BASE
+				BASEFULL="$BASEDIR/$BASE" # update complete address 
 			fi
 
-		else
-			Rscript analysis_results_mc.R $BASE $BASEDIR # file yet to be created
+			Rscript analysis_results_mc.R $BASE $EXPS $BASEDIR  # R file yet to be created
 
-			echo "Finished R files, PDF file will open."
+			echo "Finished R report, PDF file will open."
 
-			if [ "$BASEDIR" ] ; then
-				xdg-open "$BASEDIR"/"$BASE"_mc_plots.pdf	
-			else
-				xdg-open "$BASE"_mc_plots.pdf	
-			fi
-		fi
+			xdg-open "$BASEFULL"_mc_plots.pdf	
 	fi
+
 fi

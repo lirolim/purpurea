@@ -24,10 +24,10 @@
 
   if(is.na(folder)) {
     file <- basename
-    calibrationfile <- paste0("calibration",basename,".txt")
+    calibrationfile <- paste0(basename,".log")
   } else {
       file <- paste0( folder, "/", basename )
-      calibrationfile <- paste0(folder,"/","calibration",basename,".txt")
+      calibrationfile <- paste0(folder,"/",basename,".log")
   }
 
 # ==== Process LSD result files ====

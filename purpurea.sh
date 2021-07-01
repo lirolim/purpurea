@@ -19,7 +19,7 @@ Help()
 	echo "\n -s: Alter initial seed. Required argument: <seed>."
 	echo "\n -u: Alter number of processing units to be used (default is the maximum number of processing units). Required argument: <number_cpus>. "
 	echo "\n -n: Recompile the NW version of the LSD model (required if the .cpp or .hpp codes were altered)."
-	echo "\n -r: Run the simulation and create the R report."
+	echo "\n -r: Run the simulation and create the R report. By default, this option runs the .lsd file declared in the -b option or, if -b is not used, the default .lsd file. To run more than one experiment (that is, more than one .lsd file), use the option '-r <all>'. All files in the directory will be run."
 	echo "\n -h: Help and quit."
 	echo "\n Regardless of the order in which the options listed above are included in the command, the program always executes the selected options in the following order: -h -d -b -u -a -c -v -e -p -m -s -n -r."
 	echo "\n Note that while this program makes the calibration and simulation processes in LSD more efficient, it does require a good knowledge of the model structure (described by the .lsd file) and its parameters. Thus, it is highly recommended that the user is familiarized with the LSD interface and that (s)he uses a repository (such as github) to track changes in the .lsd file. Note also that the program cannot create new variables or parameters in the .lsd file, it can only read the existing model structure and alter the parameter values."
@@ -49,6 +49,7 @@ MONTECARLO=
 UNIT=$(nproc)
 RECOMPILE= 
 RUN=
+RUNALL=
 
 ### collect information from options and arguments in command ###
 
@@ -84,8 +85,20 @@ while getopts "hd:b:u:ac:v:e:nm:p:s:r" option; do # read options included in the
 		n) # recompile no window version
 			RECOMPILE=1;;
 
-		r) # run simulation and create R report
-			RUN=1;;
+		r) # run simulation (either all files or only base file) and create R report
+			RUN=1
+			eval nextopt=\${$OPTIND}
+			if [ "$nextopt" ] ; then
+				if [ $nextopt != -* ] ; then # if it is not a command
+					if [ $nextopt = "all" ] ; then
+				      	RUNALL=1
+				      	OPTIND=$((OPTIND + 1)) #  will skip argument when evaluating next option
+					else
+						echo "Invalid argument for -r. Use <all> for running all .lsd files. To run the base file, run -r (without an argument)."
+			    	fi
+			    fi 
+			fi
+		    ;;
 
 		m) # update number of monte carlo runs
 			MONTECARLO=$OPTARG;;
@@ -240,33 +253,59 @@ if [ "$RUN" ] ; then
 
 	if [ "$BASEDIR" ] ; then
 		cd "$MAINDIR" # go back to main directory
-		make -f makefileRUN -j$UNIT LSD="$BASEDIR/$BASE.lsd"  
+
+		if [ $RUNALL ] ; then
+			make -f makefileRUN -j$UNIT FOLDER="$BASEDIR"
+			EXPS=$("ls -lR $BASEDIR/*.lsd | wc -l") # count number of lsd files
+		else
+			make -f makefileRUN -j$UNIT LSD="$BASEDIR/$BASE.lsd"  
+		fi
+
 	else
-		make -f makefileRUN -j$UNIT LSD="$BASE.lsd" 
+
+		if [ $RUNALL ] ; then
+			make -f makefileRUN -j$UNIT 
+			EXPS=$("ls -lR *.lsd | wc -l") # count number of lsd files
+		else
+			make -f makefileRUN -j$UNIT LSD="$BASE.lsd" 
+		fi
+
 	fi
 
 	echo "Finished simulation. R script will be processed... \n "
 
-	if [ "$MONTECARLOTXT" = "SIM_NUM 1" ] ; then
-		Rscript analysis_results_single.R $BASE $SEEDTXT $BASEDIR 
+	if [ $RUNALL ] ; then
+			Rscript analysis_results_mc.R $BASE $BASEDIR $EXPS
 
-		echo "Finished R files, PDF file will open."
-		
-		if [ "$BASEDIR" ] ; then
-			xdg-open "$BASEDIR"/"$BASE"_single_plots.pdf	
-		else
-			xdg-open "$BASE"_single_plots.pdf	
-		fi
+			echo "Finished R files, PDF file will open."
 
+			if [ "$BASEDIR" ] ; then
+				xdg-open "$BASEDIR"/"$BASE"_mc_plots.pdf	
+			else
+				xdg-open "$BASE"_mc_plots.pdf	
+			fi
 	else
-		Rscript analysis_results_mc.R $BASE $BASEDIR # file yet to be created
+		if [ "$MONTECARLOTXT" = "SIM_NUM 1" ] ; then
+			Rscript analysis_results_single.R $BASE $SEEDTXT $BASEDIR 
 
-		echo "Finished R files, PDF file will open."
+			echo "Finished R files, PDF file will open."
+			
+			if [ "$BASEDIR" ] ; then
+				xdg-open "$BASEDIR"/"$BASE"_single_plots.pdf	
+			else
+				xdg-open "$BASE"_single_plots.pdf	
+			fi
 
-		if [ "$BASEDIR" ] ; then
-			xdg-open "$BASEDIR"/"$BASE"_mc_plots.pdf	
 		else
-			xdg-open "$BASE"_mc_plots.pdf	
+			Rscript analysis_results_mc.R $BASE $BASEDIR # file yet to be created
+
+			echo "Finished R files, PDF file will open."
+
+			if [ "$BASEDIR" ] ; then
+				xdg-open "$BASEDIR"/"$BASE"_mc_plots.pdf	
+			else
+				xdg-open "$BASE"_mc_plots.pdf	
+			fi
 		fi
 	fi
 fi

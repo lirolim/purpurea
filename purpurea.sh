@@ -33,7 +33,6 @@ echo "\n === Purpurea: LSD in the background === \n"
 
 ### create default variable values and empty variables ###
 
-MAINDIR="$PWD"
 BASE="Sim1"
 BASEFULL="Sim1"
 BASECHANGE=
@@ -294,10 +293,11 @@ if [ "$RUN" ] ; then
 		MONTECARLO=$(awk '/SIM_NUM/ {print $NF}' "$BASEFULL.lsd")
 		SEED=$(awk '/SEED/ {print $NF}' "$BASEFULL.lsd")
 
+
 	# create R report
 
 	if [ "$EXPS" -eq 1 -a "$MONTECARLO" -eq 1 ] ; then
-			Rscript analysis_results_single.R $BASE $SEED $BASEDIR 
+			Rscript analysis_results_single.R $PWD $BASE $SEED $BASEDIR 
 
 			echo "Finished R report, PDF file will open."
 			
@@ -309,7 +309,7 @@ if [ "$RUN" ] ; then
 				BASEFULL="$BASEDIR/$BASE" # update complete address 
 			fi
 
-			Rscript analysis_results_mc.R $BASE $EXPS $BASEDIR  # R file yet to be created
+			Rscript analysis_results_mc.R $PWD $BASE $EXPS $BASEDIR  # R file yet to be created
 
 			echo "Finished R report, PDF file will open."
 

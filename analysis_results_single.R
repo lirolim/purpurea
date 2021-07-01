@@ -6,17 +6,16 @@
 # Based on LSDinterface package. Adapted from KS model.
 #******************************************************************
 
-## IMPORTANT: Before running this file, remember to set working directory by running in the console the following command: 
-  setwd("")
  
 # read information from command line:  
   args   <- commandArgs(trailingOnly = TRUE)   # commands must be in the following order: basename seed folder 
 
-# options
+  setwd(args[1]) # set working directory
 
-  basename <- args[1]               # name of .lsd file (must always be included)
-  seed <- args[2]                   # seed (must always be included)
-  folder <- args[3]                 # folder in which the LSD file is contained (optional argument)
+# options
+  basename <- args[2]               # name of .lsd file (must always be included)
+  seed <- args[3]                   # seed (must always be included)
+  folder <- args[4]                 # folder in which the LSD file is contained (optional argument)
   iniDrop <- 0                     # initial time steps to drop from analysis (0=none)
   nKeep <- -1                      # number of time steps to keep (-1=all)
 

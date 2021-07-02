@@ -153,20 +153,21 @@ fi
 # change parameter values
 
 if [ "$PARAMCHANGE" ] ; then
-	echo "Edit parameter values in $BASE.lsd:"
+	echo "Edit parameter values in $BASE.lsd: \n"
 	
 	for param in $PARAMCHANGE ; do
 		LINE_CHANGE=$(sed -n "/^Param: $param /=" "$BASEFULL.lsd")
 		
 		if [ "$LINE_CHANGE" ] ; then
 			CURRENT=$(sed -n "$LINE_CHANGE"p "$BASEFULL.lsd")
-			echo "Line $LINE_CHANGE | $CURRENT"
-			echo "Please type new parameter value:" 
+			echo -n "Parameter: $param | Current value: "
+			echo "$CURRENT" | awk '{print $NF}'
+			echo -n "Please type new parameter value: " 
 			read VALUE
 
 			sed -i -r "s/^(Param: $param) (.*)([\t ])[0-9\.]+\$/\1 \2\3$VALUE/" "$BASEFULL.lsd"
 
-			echo "$BASE.lsd has been updated. New entry is:"
+			echo -n "$BASE.lsd has been updated. New entry in line $LINE_CHANGE is: "
 			sed -n "$LINE_CHANGE"p "$BASEFULL.lsd"
 			echo "\n"
 			

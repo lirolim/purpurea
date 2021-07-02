@@ -10,7 +10,7 @@ Help()
 	echo "This program reads and edits parameter values in .lsd files, runs the simulation, and creates a PDF report using R. These are the program's options: \n"
 	echo "\n -b: Alter base name for .lsd file (default is Sim1). The .lsd termination must not be included."
 	echo "\n -d: Alter directory in which .lsd is saved (default is current folder). The simulation results and R report will be saved in this directory (if -r option is enabled)."
-	echo "\n -a: Read the .lsd file (all parameters). All parameters will be listed twice: they are first declared and then their value is reported."
+	echo "\n -a: Read the .lsd file (all parameters). All parameters and variables will be listed. Information on simulation setting (number of simulations, seed and number of periods) is also displayed."
 	echo "\n -c: Consult the exact name of a parameter by adding its beginning. Required argument: <parameter_name>. All parameters will be listed twice: they are first declared and then their value is reported."
 	echo "\n -v: Read the .lsd file (specific parameters). Required argument: <parameter_name>. For reading more than one parameter at the same time, use the -v <parameter_name> option multiple times."
 	echo "\n -e: Edit a parameter value. Required argument: <parameter_name>. The program will show the current parameter value and will ask the user for its new value. In addition to editing the .lsd file, this option also saves the user's changes into .log file. After changing the file, the new information is shown - if there is a mistake, there may have been a mistake in the <parameter_name> entry. The exact name of the parameter is required: the program may find the parameter if the name is incomplete, but it will not change the parameter properly. For changing more than one parameter with the same command, use the -e <parameter_name> option multiple times. Note that the .lsd's definitions of parameters are not updated.   "
@@ -134,8 +134,8 @@ fi
 # read all parameters in base file
 
 if [ "$READBASE" ] ; then
-	echo "Displaying all parameters:"
-	grep 'Param: \|Son: ' "$BASEFULL.lsd"
+	echo "Displaying all parameters and variables in :$BASEFULL.lsd"
+	sed -n '/DATA/,/MAX_STEP/'p "$BASEFULL.lsd"
 	echo "\n"
 fi
 

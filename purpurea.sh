@@ -11,8 +11,7 @@ Help()
 	echo "\n -b: Alter base name for .lsd file (default is Sim1). The .lsd termination must not be included."
 	echo "\n -d: Alter directory in which .lsd is saved (default is current folder). The simulation results and R report will be saved in this directory (if -r option is enabled)."
 	echo "\n -a: Read the .lsd file (all parameters). All parameters and variables will be listed. Information on simulation setting (number of simulations, seed and number of periods) is also displayed."
-	echo "\n -c: Consult the exact name of a parameter by adding its beginning. Required argument: <parameter_name>. All parameters will be listed twice: they are first declared and then their value is reported."
-	echo "\n -v: Read the .lsd file (specific parameters). Required argument: <parameter_name>. For reading more than one parameter at the same time, use the -v <parameter_name> option multiple times."
+	echo "\n -c: Consult specific parameter by providing its complete name or part of its name. Required argument: <parameter_name>. Parameters that have an approximate correspondence to the pattern provided will also be listed (max 1 divergences).  For consulting more than one parameter at the same time, use the -c <parameter_name> option multiple times. This option requires the agrep command to be installed, if otherwise, an error message will appear and instructions for installing the command will be displayed."
 	echo "\n -e: Edit a parameter value. Required argument: <parameter_name>. The program will show the current parameter value and will ask the user for its new value. In addition to editing the .lsd file, this option also saves the user's changes into .log file. After changing the file, the new information is shown - if there is a mistake, there may have been a mistake in the <parameter_name> entry. The exact name of the parameter is required: the program may find the parameter if the name is incomplete, but it will not change the parameter properly. For changing more than one parameter with the same command, use the -e <parameter_name> option multiple times. Note that the .lsd's definitions of parameters are not updated.   "
 	echo "\n -p: Alter number of simulation periods. Required argument: <max_period>"
 	echo "\n -m: Alter number of simulation runs (for MC analysis). Required argument: <number_mc>."
@@ -40,7 +39,6 @@ BASEDIR=
 READBASE=
 CURRENT=
 PARAMCONSULT=
-PARAMREAD=
 PARAMCHANGE= 
 PERIODS=
 SEED=
@@ -53,7 +51,7 @@ RUNALL=
 
 ### collect information from options and arguments in command ###
 
-while getopts "hd:b:u:ac:v:e:nm:p:s:r" option; do # read options included in the command line, create a list and loop through the list 
+while getopts "hd:b:u:ac:e:nm:p:s:r" option; do # read options included in the command line, create a list and loop through the list 
 	case $option in 
 
 		h) # display help
@@ -76,9 +74,6 @@ while getopts "hd:b:u:ac:v:e:nm:p:s:r" option; do # read options included in the
 		c) # consult parameter name (create array)
 			PARAMCONSULT="$PARAMCONSULT $OPTARG";;
 
-		v) # read specific parameter (create array)
-			PARAMREAD="$PARAMREAD $OPTARG";;
-
 		e) # edit parameter values (create array)
 			PARAMCHANGE="$PARAMCHANGE $OPTARG";;
 
@@ -89,8 +84,8 @@ while getopts "hd:b:u:ac:v:e:nm:p:s:r" option; do # read options included in the
 			RUN=1
 			eval nextopt=\${$OPTIND}
 			if [ "$nextopt" ] ; then
-				if [ $nextopt != -* ] ; then # if it is not a command
-					if [ $nextopt = "all" ] ; then
+				if [ "$nextopt" != -* ] ; then # if it is not a command
+					if [ "$nextopt" = "all" ] ; then
 				      	RUNALL=1
 				      	OPTIND=$((OPTIND + 1)) #  will skip argument when evaluating next option
 					else
@@ -144,35 +139,16 @@ fi
 if [ "$PARAMCONSULT" ] ; then
 	
 	for param in $PARAMCONSULT ; do
-		echo "Searching for parameter names with $param:"
 		
-		if grep -q "Param: $param" "$BASEFULL.lsd"; then # if parameter was found
-			grep "Param: $param" "$BASEFULL.lsd"
-			echo "\n"
-		else
-			echo "Parameter $param not found. Try searching for the parameter's initial letters. \n"
-		fi
+		PARAMMATCH=$(( $(agrep -1 -c "<Param:>;$param" "$BASEFULL.lsd") / 2 )) # find number of parameters (divided by 2 because 'Param:' appears twice"
+		
+		echo "Searching for parameter names with '$param': $PARAMMATCH parameters found."
+		
+		agrep -1 "<Param:>;$param" "$BASEFULL.lsd" | tail -"$PARAMMATCH"
+		echo "\n"
 	done
 fi
 
-# read specific parameter values
-
-if [ "$PARAMREAD" ] ; then
-	echo "Reading specific parameter values:"
-
-	for param in $PARAMREAD ; do
-
-		LINE=$(sed -n "/^Param: $param /=" "$BASEFULL.lsd")
-				
-		if [ "$LINE" ] ; then
-			CURRENT=$(sed -n "$LINE"p "$BASEFULL.lsd")
-			echo "Line $LINE | $CURRENT"
-		else
-			echo "$param not found! Please run -v with the correct and complete parameter name. To check a parameter's name, use option -a (all parameters) or option -c <parameter_name_beginning>."
-		fi
-	done
-	echo "\n"
-fi
 
 # change parameter values
 

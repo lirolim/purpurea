@@ -9,18 +9,19 @@ Help()
 	# Display help
 	echo "This program reads and edits parameter values in .lsd files, runs the simulation, and creates a PDF report using R. These are the program's options: \n"
 	echo "\n -b: Alter base name for .lsd file (default is Sim1). The .lsd termination must not be included."
-	echo "\n -d: Alter directory in which .lsd is saved (default is current folder). The simulation results and R report will be saved in this directory (if -r option is enabled)."
+	echo "\n -d: Alter directory in which .lsd is saved (default is current directory). The simulation results and R report will be saved in this directory (if -r option is enabled)."
 	echo "\n -a: Read the .lsd file (all parameters). All parameters and variables will be listed. Information on simulation setting (number of simulations, seed and number of periods) is also displayed."
-	echo "\n -c: Consult specific parameter by providing its complete name or part of its name. Required argument: <parameter_name>. Parameters that have an approximate correspondence to the pattern provided will also be listed (max 1 divergences).  For consulting more than one parameter at the same time, use the -c <parameter_name> option multiple times. This option requires the agrep command to be installed, if otherwise, an error message will appear and instructions for installing the command will be displayed."
+	echo "\n -c: Consult specific parameter by providing its complete name or part of its name. Required argument: <parameter_name>. Parameters that have an approximate correspondence to the pattern provided will also be listed (max 1 divergence).  For consulting more than one parameter at the same time, use the -c <parameter_name> option multiple times. This option requires the agrep command to be installed, if otherwise, an error message will appear and instructions for installing the command will be displayed."
 	echo "\n -e: Edit a parameter value. Required argument: <parameter_name>. The program will show the current parameter value and will ask the user for its new value. In addition to editing the .lsd file, this option also saves the user's changes into .log file. After changing the file, the new information is shown - if there is a mistake, there may have been a mistake in the <parameter_name> entry. The exact name of the parameter is required: the program may find the parameter if the name is incomplete, but it will not change the parameter properly. For changing more than one parameter with the same command, use the -e <parameter_name> option multiple times. Note that the .lsd's definitions of parameters are not updated.   "
 	echo "\n -p: Alter number of simulation periods. Required argument: <max_period>"
 	echo "\n -m: Alter number of simulation runs (for MC analysis). Required argument: <number_mc>."
 	echo "\n -s: Alter initial seed. Required argument: <seed>."
 	echo "\n -u: Alter number of processing units to be used (default is the maximum number of processing units). Required argument: <number_cpus>. "
 	echo "\n -n: Recompile the NW version of the LSD model (required if the .cpp or .hpp codes were altered)."
-	echo "\n -r: Run the simulation and create the R report. By default, this option runs the .lsd file declared in the -b option or, if -b is not used, the default .lsd file. To run more than one experiment (that is, more than one .lsd file), use the optional argument '<all>'. All .lsd files in the directory will be run. Note that R only works properly if the experiments share the same base name (eg. Sim) and are followed by an integer (eg. Sim1, Sim2)."
+	echo "\n -r: Run a single simulation and create the R report. By default, this option runs the .lsd file declared in the -b option or, if -b is not used, the default .lsd file. "
+	echo "\n -R: Run all .lsd files in current directory or directory declared in -d option and create the R report. Note that R only works properly if the experiments share the same base name (eg. Sim), followed by an integer (eg. Sim1, Sim2)."
 	echo "\n -h: Help and quit."
-	echo "\n Regardless of the order in which the options listed above are included in the command, the program always executes the selected options in the following order: -h -d -b -u -a -c -v -e -p -m -s -n -r."
+	echo "\n Regardless of the order in which the options listed above are included in the command, the program always executes the selected options in the following order: -h -d -b -u -a -c -e -p -m -s -n -r -R."
 	echo "\n Note that while this program makes the calibration and simulation processes in LSD more efficient, it does require a good knowledge of the model structure (described by the .lsd file) and its parameters. Thus, it is highly recommended that the user is familiarized with the LSD interface and that (s)he uses a repository (such as github) to track changes in the .lsd file. Note also that the program cannot create new variables or parameters in the .lsd file, it can only read the existing model structure and alter the parameter values."
 }
 
@@ -51,7 +52,7 @@ RUNALL=
 
 ### collect information from options and arguments in command ###
 
-while getopts "hd:b:u:ac:e:nm:p:s:r" option; do # read options included in the command line, create a list and loop through the list 
+while getopts "hd:b:u:ac:e:nm:p:s:rR" option; do # read options included in the command line, create a list and loop through the list 
 	case $option in 
 
 		h) # display help
@@ -80,21 +81,13 @@ while getopts "hd:b:u:ac:e:nm:p:s:r" option; do # read options included in the c
 		n) # recompile no window version
 			RECOMPILE=1;;
 
-		r) # run simulation (either all files or only base file) and create R report
-			RUN=1
-			eval nextopt=\${$OPTIND}
-			if [ "$nextopt" ] ; then
-				if [ "$nextopt" != -* ] ; then # if it is not a command
-					if [ "$nextopt" = "all" ] ; then
-				      	RUNALL=1
-				      	OPTIND=$((OPTIND + 1)) #  will skip argument when evaluating next option
-					else
-						echo "Invalid argument for -r. Use <all> for running all .lsd files. To run the base file, run -r (without an argument)."
-			    	fi
-			    fi 
-			fi
-		    ;;
+		r) # run simulation and create R report
+			RUN=1;;	
 
+		R) # run all simulations in directory and create R report
+			RUNALL=1
+			RUN=1;;
+		
 		m) # update number of monte carlo runs
 			MONTECARLO=$OPTARG;;
 
@@ -129,7 +122,7 @@ fi
 # read all parameters in base file
 
 if [ "$READBASE" ] ; then
-	echo "Displaying all parameters and variables in :$BASEFULL.lsd"
+	echo "Displaying all parameters and variables in $BASEFULL.lsd \n"
 	sed -n '/DATA/,/MAX_STEP/'p "$BASEFULL.lsd"
 	echo "\n"
 fi
@@ -174,7 +167,7 @@ if [ "$PARAMCHANGE" ] ; then
 			DATE=$(date)
 			echo "$DATE | $CURRENT | Altered to: $VALUE" >> "$BASEFULL.log"
 		else
-			echo "$param not found! Please run -e with the correct and complete parameter name. To check a parameter's name, use option -a (all parameters) or option -c <parameter_name_beginning>."
+			echo "Parameter '$param' not found! Please run -e with the correct and complete parameter name. To check a parameter's name, use option -a (all parameters) or option -c <parameter_name>."
 			exit 3
 		fi 
 	done

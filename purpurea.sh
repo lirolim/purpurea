@@ -108,9 +108,14 @@ done
 
 # declare folder (if specified by user, otherwise current directory is used)
 
-if [ "$BASEDIR" ]; then
-	echo "Directory is $BASEDIR \n"
-	BASEFULL="$BASEDIR/$BASE" # update complete address of base file
+if [ "$BASEDIR" ]; then	
+	if [ -d "$BASEDIR" ] ; then
+		echo "Directory is '$BASEDIR' \n"
+		BASEFULL="$BASEDIR/$BASE" # update complete address of base file
+	else
+		echo "Selected directory in option '-d' does not exist. Please create directory and rerun."
+		exit 3
+	fi
 fi
 
 # declare base file (if altered by user)

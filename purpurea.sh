@@ -9,7 +9,7 @@ Help()
 	# Display help
 	echo "This program reads and edits parameter values in .lsd files, runs the simulation, and creates a PDF report using R. These are the program's options: \n"
 	echo "\n -b: Alter base name for .lsd file (default is Sim1). The .lsd termination must not be included."
-	echo "\n -d: Alter directory in which .lsd is saved (default is current directory). The simulation results and R report will be saved in this directory (if -r option is enabled)."
+	echo "\n -d: Alter directory in which .lsd is saved (default is current directory). The simulation results and R report will be saved in this directory (if -r or -R options are enabled)."
 	echo "\n -a: Read the .lsd file (all parameters). All parameters and variables will be listed. Information on simulation setting (number of simulations, seed and number of periods) is also displayed."
 	echo "\n -c: Consult specific parameter by providing its complete name or part of its name. Required argument: <parameter_name>. Parameters that have an approximate correspondence to the pattern provided will also be listed (max 1 divergence).  For consulting more than one parameter at the same time, use the -c <parameter_name> option multiple times. This option requires the agrep command to be installed, if otherwise, an error message will appear and instructions for installing the command will be displayed."
 	echo "\n -e: Edit a parameter value. Required argument: <parameter_name>. The program will show the current parameter value and will ask the user for its new value. In addition to editing the .lsd file, this option also saves the user's changes into .log file. After changing the file, the new information is shown - if there is a mistake, there may have been a mistake in the <parameter_name> entry. The exact name of the parameter is required: the program may find the parameter if the name is incomplete, but it will not change the parameter properly. For changing more than one parameter with the same command, use the -e <parameter_name> option multiple times. Note that the .lsd's definitions of parameters are not updated.   "
@@ -17,11 +17,12 @@ Help()
 	echo "\n -m: Alter number of simulation runs (for MC analysis). Required argument: <number_mc>."
 	echo "\n -s: Alter initial seed. Required argument: <seed>."
 	echo "\n -u: Alter number of processing units to be used (default is the maximum number of processing units). Required argument: <number_cpus>. "
+	echo "\n -i: Interactive mode: create multiple .lsd files based on base file declared in '-b' (or default). The base file's name has to finish with '1' (eg. Sim1). Required argument: <number_experiments> (including the base file provided). If <number_experiments> is equal to one, no new file will be created, but the user may alter the base file. The user will be asked for the parameters to be altered and whether (s)he would like to alter the number of periods, the number of MC runs, or initial seed for each file (if different from default). All changes are saved in basename.log file."
 	echo "\n -n: Recompile the NW version of the LSD model (required if the .cpp or .hpp codes were altered)."
 	echo "\n -r: Run a single simulation and create the R report. By default, this option runs the .lsd file declared in the -b option or, if -b is not used, the default .lsd file. "
-	echo "\n -R: Run all .lsd files in current directory or directory declared in -d option and create the R report. Note that R only works properly if the experiments share the same base name (eg. Sim), followed by an integer (eg. Sim1, Sim2)."
+	echo "\n -R: Run all .lsd files in current directory or directory declared in -d option and create the R report. Note that R only works properly if the experiments share the same base name (eg. Sim), followed by an integer (eg. Sim1, Sim2). This option overwrites the -r option."
 	echo "\n -h: Help and quit."
-	echo "\n Regardless of the order in which the options listed above are included in the command, the program always executes the selected options in the following order: -h -d -b -u -a -c -e -p -m -s -n -r -R."
+	echo "\n Regardless of the order in which the options listed above are included in the command, the program always executes the selected options in the following order: -h -d -b -u -a -c -e -p -m -s -i -n -r (or -R)."
 	echo "\n Note that while this program makes the calibration and simulation processes in LSD more efficient, it does require a good knowledge of the model structure (described by the .lsd file) and its parameters. Thus, it is highly recommended that the user is familiarized with the LSD interface and that (s)he uses a repository (such as github) to track changes in the .lsd file. Note also that the program cannot create new variables or parameters in the .lsd file, it can only read the existing model structure and alter the parameter values."
 }
 
@@ -49,10 +50,11 @@ EXPS=1
 RECOMPILE= 
 RUN=
 RUNALL=
+INTERACT=
 
 ### collect information from options and arguments in command ###
 
-while getopts "hd:b:u:ac:e:nm:p:s:rR" option; do # read options included in the command line, create a list and loop through the list 
+while getopts "hd:b:u:ac:e:nm:p:s:i:rR" option; do # read options included in the command line, create a list and loop through the list 
 	case $option in 
 
 		h) # display help
@@ -83,6 +85,9 @@ while getopts "hd:b:u:ac:e:nm:p:s:rR" option; do # read options included in the 
 
 		r) # run simulation and create R report
 			RUN=1;;	
+
+		i) # interactive mode?
+			INTERACT=$OPTARG;;
 
 		R) # run all simulations in directory and create R report
 			RUNALL=1
@@ -207,6 +212,245 @@ if [ "$SEED" ] ; then
 	sed -n '/SEED/'p "$BASEFULL.lsd"
 fi
 
+# interactive mode
+
+if [ "$INTERACT" ] ; then
+
+	# get base name of file (without number)
+		
+		echo "\n Running interactive option"
+
+		if [ "$INTERACT" -eq 1 ] ; then
+			echo "\n Number of experiments provided for interactive option is equal to one. This option will only edit the base file, but no other files will be created."
+		fi
+
+		echo "\n Please type the base name for your .lsd files (just the part that is repeated in all files, without the number '1' or '.lsd').  The base file must already be included in the folder declared on '-d' option or in the current directory. All .lsd files that match the pattern 'basenameX.lsd' (X = [1,  $INTERACT]) in the directory will be overwritten by the program. 
+				\n Default option is 'Sim'. Press 'ENTER' to accept default option or type correct base name otherwise."
+
+		read IBASEN
+
+		if [ ! "$IBASEN" ] ; then
+			IBASEN="Sim"
+		fi
+
+		IBASE="$IBASEN"1 # first file
+
+
+		if [ "$BASEDIR" ] ; then
+			IBASEFULL="$BASEDIR/$IBASEN" 
+		else
+			IBASEFULL="$IBASEN"
+		fi
+
+		K=1
+		echo "Main file is '$IBASEFULL$K.lsd'"
+
+		if ! [ -f "$IBASEFULL"1.lsd ] ; then
+			echo "\n File $IBASE.lsd is not available in directory. Please alter the base name (note that if files are Sim1.lsd, Sim2.lsd, etc, the base name is Sim) or create file and rerun."
+			exit 5
+		fi
+
+		DATE=$(date)
+		echo "\n $DATE | Interactive mode based on $IBASE (total of experiments is $INTERACT)" >> "$IBASEFULL.log"
+
+
+	# create files 
+		if [ "$INTERACT" -gt 1 ] ; then
+			K=2 # already one file created - will start with file 2
+
+			echo -n "\n New file(s) created: "
+			while [ "$K" -le "$INTERACT" ] ; do
+				cp "$IBASEFULL"1.lsd "$IBASEFULL$K".lsd
+				echo -n "$IBASEFULL$K.lsd "
+				echo "New file created: $IBASEFULL$K.lsd" >> "$IBASEFULL.log"
+				K=$((K+1))			
+			done
+			echo "\n"
+		fi
+
+	# get parameters to change
+
+		echo -n "\n Would you like to alter a parameter in the files [Y/n]? \n"
+		
+		read ICHANGE
+
+		while [ "$ICHANGE" = "y"  -o "$ICHANGE" = "Y" -o ! "$ICHANGE" ] ; do
+			
+			echo -n "\n Please type the complete parameter name: "
+
+			read IPARAMCHANGE
+
+			ILINE_CHANGE=$(sed -n "/^Param: $IPARAMCHANGE /=" "$IBASEFULL"1.lsd)
+				
+			if [ "$ILINE_CHANGE" ] ; then
+				ICURRENT=$(sed -n "$ILINE_CHANGE"p "$IBASEFULL"1.lsd)
+				echo -n "Parameter: $IPARAMCHANGE | Value in $IBASE.lsd: "
+				echo "$ICURRENT" | awk '{print $NF}'
+				echo -n "Please type the parameter values sequentially, one for each experiment (total of $INTERACT parameters, $IBASE.lsd included) or a single parameter (equal to all files): " 
+				read IVALUE	
+							
+				while [ "$(echo "$IVALUE" | wc -w)" -ne "$INTERACT" -a "$(echo "$IVALUE" | wc -w)" -ne 1 ] ; do
+					echo -n "Invalid number of arguments. Please type $INTERACT parameter values, one for each experiment (starting with $IBASE.lsd), or a single parameter (equal to all files): "
+					read IVALUE	
+				done
+
+
+				if [ "$(echo "$IVALUE" | wc -w)" -eq 1 ] ; then # if same parameter for all files
+					echo "\n All files will receive the same parameter value. Changing parameter '$IPARAMCHANGE' values:"
+					IVALUE=$(printf "$IVALUE%.0s " $(seq 1 $INTERACT))
+				else
+					echo " \n Changing parameter '$IPARAMCHANGE' values:"
+				fi
+
+
+				K=1
+
+				for iparam in $IVALUE ; do
+
+					sed -i -r "s/^(Param: $IPARAMCHANGE) (.*)([\t ])[0-9\.]+\$/\1 \2\3$iparam/" "$IBASEFULL$K.lsd"
+
+					echo -n "$IBASEFULL$K.lsd has been updated. New entry is: "
+					sed -n "$ILINE_CHANGE"p "$IBASEFULL$K.lsd"
+
+					echo  "Parameter change: parameter $IPARAMCHANGE equal to $iparam in file $IBASEFULL$K.lsd" >> "$IBASEFULL.log"
+
+
+					K=$((K+1))	
+				done		
+			
+				echo "\n"		
+
+			else
+				echo -n "\n Parameter '$IPARAMCHANGE' not found. "
+			fi 
+
+			echo -n "\n Would you like to alter another parameter in the files [Y/n]? \n"
+			read ICHANGE
+		done
+
+	# get periods to change
+		
+		K=1
+		echo -n "\n Current number of periods is " 
+		sed -n '/MAX_STEP/'p "$IBASEFULL$K.lsd" | awk '{print $NF}'
+		echo -n "Would you like to alter the number of periods for the experiments [y/N]? \n"
+
+		read IPERIODS
+
+		if [ "$IPERIODS" = "y" -o  "$IPERIODS" = "Y" ] ; then
+			echo -n "\n Please type the number of periods for each experiment (total of $INTERACT values, $IBASE.lsd included) or a single value (equal to all files): " 
+			read IPERIODSVALUE	
+							
+			while [ "$(echo "$IPERIODSVALUE" | wc -w)" -ne "$INTERACT" -a "$(echo "$IPERIODSVALUE" | wc -w)" -ne 1 ] ; do
+				echo -n "Invalid number of arguments. Please type $INTERACT values, one for each experiment (starting with $IBASE.lsd) or a single value (equal to all files): "
+				read IPERIODSVALUE	
+			done
+
+
+			if [ "$(echo "$IPERIODSVALUE" | wc -w)" -eq 1 ] ; then
+				echo "\n All files will receive the same number of periods. Changing number of periods:"
+				IPERIODSVALUE=$(printf "$IPERIODSVALUE%.0s " $(seq 1 $INTERACT))
+			else
+				echo " \n Changing number of periods:"
+			fi
+
+
+			K=1
+
+			for iperiods in $IPERIODSVALUE ; do
+				sed -i -r "s/^(MAX_STEP) (.*)/MAX_STEP $iperiods/" "$IBASEFULL$K.lsd"
+				echo -n "\n Simulation periods in $IBASEFULL$K.lsd updated: " 
+				sed -n '/MAX_STEP/'p "$IBASEFULL$K.lsd"
+
+				echo "Simulation periods change: equal to $iperiods in file $IBASEFULL$K.lsd" >> "$IBASEFULL.log"
+				
+				K=$((K+1))	
+			done		
+			echo "\n"	
+		fi
+
+	# get new number of simulations
+
+		K=1
+		
+		echo -n "\n Current number of Monte Carlo runs is "
+		sed -n '/SIM_NUM/'p "$IBASEFULL$K.lsd" | awk '{print $NF}'
+		echo -n "Would you like to alter the number of MC runs for each experiment [y/N]? \n"
+
+		read IMC 
+
+		if [ "$IMC" = "y" -o "$IMC" = "Y" ] ; then
+			echo -n "\n Please type the number of MC runs for each experiment (total of $INTERACT values, $IBASE.lsd included) or a single value (equal to all files): " 
+			read IMONTECARLO
+
+			while [ "$(echo "$IMONTECARLO" | wc -w)" -ne "$INTERACT" -a "$(echo "$IMONTECARLO" | wc -w)" -ne 1 ] ; do
+				echo -n "Invalid number of arguments. Please type $INTERACT values, one for each experiment (starting with $IBASE.lsd),  or a single value (equal to all files): "
+				read IMONTECARLO	
+			done
+
+
+			if [ "$(echo "$IMONTECARLO" | wc -w)" -eq 1 ] ; then
+				echo "\n All files will receive the same number of simulation runs. Changing number of simulation runs:"
+				IMONTECARLO=$(printf "$IMONTECARLO%.0s " $(seq 1 $INTERACT))
+			else
+				echo "\n Changing number of simulation runs:"
+			fi
+
+			K=1
+
+			for imc in $IMONTECARLO ; do
+				sed -i -r "s/^(SIM_NUM) (.*)/SIM_NUM $imc/" "$IBASEFULL$K.lsd"
+				echo -n "\n Number of monte carlo runs in $IBASEFULL$K.lsd updated: "
+				sed -n '/SIM_NUM/'p "$IBASEFULL$K.lsd"
+
+				echo "Simulation MC runs change: equal to $imc in file $IBASEFULL$K.lsd" >> "$IBASEFULL.log"
+
+				K=$((K+1))
+			done
+		fi
+
+	# get seed to change
+		
+		K=1
+		echo -n "\n Current initial seed is " 
+		sed -n '/SEED/'p "$IBASEFULL$K.lsd" | awk '{print $NF}'
+		echo -n "Would you like to alter the initial seed for the experiments [y/N]? \n"
+
+		read ISEED
+
+		if [ "$ISEED" = "y" -o  "$ISEED" = "Y" ] ; then
+			echo -n "\n Please type the initial seed for each experiment (total of $INTERACT values, $IBASE.lsd included) or a single value (equal to all files): " 
+			read ISVALUE	
+							
+			while [ "$(echo "$ISVALUE" | wc -w)" -ne "$INTERACT" -a "$(echo "$ISVALUE" | wc -w)" -ne 1 ] ; do
+				echo -n "Invalid number of arguments. Please type $INTERACT values, one for each experiment (starting with $IBASE.lsd) or a single value (equal to all files): "
+				read ISVALUE	
+			done
+
+
+			if [ "$(echo "$ISVALUE" | wc -w)" -eq 1 ] ; then
+				echo "\n All files will receive the same initial seed. Changing initial seed:"
+				ISVALUE=$(printf "$ISVALUE%.0s " $(seq 1 $INTERACT))
+			else
+				echo " \n Changing initial seed:"
+			fi
+
+
+			K=1
+
+			for iseed in $ISVALUE ; do
+				sed -i -r "s/^(SEED) (.*)/SEED $iseed/" "$IBASEFULL$K.lsd"
+				echo -n "\n Initial seed in $IBASEFULL$K.lsd has been updated: " 
+				sed -n '/SEED/'p "$IBASEFULL$K.lsd"
+
+				echo "Simulation initial seed change: equal to $iseed in file $IBASEFULL$K.lsd" >> "$IBASEFULL.log"
+				
+				K=$((K+1))	
+			done		
+			echo "\n"	
+		fi
+fi
+
 # recompile NW version of model
 
 if [ "$RECOMPILE" ] ; then
@@ -284,9 +528,14 @@ if [ "$RUN" ] ; then
 			xdg-open "$BASEFULL"_single_plots.pdf	
 	else
 			if [ "$EXPS" != 1 ] ; then # ask the user what is the base name used for the .lsd files (just the part that is kept in all files)
-				echo "Please type the base name for your .lsd files (just the part that is repeated in all files, without .lsd). For instance, if files are Sim1.lsd and Sim2.lsd, the base name is Sim."
-				read BASE
-				BASEFULL="$BASEDIR/$BASE" # update complete address 
+				if [ "$INTERACT" ] ; then
+					BASE=$IBASEN
+					BASEFULL="$BASEDIR/$BASE" # update complete address 
+				else
+					echo "Please type the base name for your .lsd files (just the part that is repeated in all files, without .lsd). For instance, if files are Sim1.lsd and Sim2.lsd, the base name is Sim."
+					read BASE
+					BASEFULL="$BASEDIR/$BASE" # update complete address 
+				fi
 			fi
 
 			Rscript analysis_results_mc.R $PWD $BASE $EXPS $BASEDIR  # R file yet to be created

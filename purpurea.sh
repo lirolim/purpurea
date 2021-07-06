@@ -156,7 +156,12 @@ if [ "$PARAMCHANGE" ] ; then
 			echo -n "Parameter: $param | Current value: "
 			echo "$CURRENT" | awk '{print $NF}'
 			echo -n "Please type new parameter value: " 
-			read VALUE
+			read VALUE	
+
+			while [ -z "$VALUE" ] ; do
+				echo "Empty entry. Please type new parameter value:"
+				read VALUE
+			done
 
 			sed -i -r "s/^(Param: $param) (.*)([\t ])[0-9\.]+\$/\1 \2\3$VALUE/" "$BASEFULL.lsd"
 

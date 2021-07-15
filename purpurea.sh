@@ -66,6 +66,7 @@ while getopts "hd:b:u:ac:e:nm:p:s:i:rR" option; do # read options included in th
 
 		b) # base file
 			BASE=$OPTARG
+			BASEFULL=$BASE
 			BASECHANGE=1;;
 
 		u) # alter number of processing units
@@ -123,11 +124,13 @@ if [ "$BASEDIR" ]; then
 	fi
 fi
 
-# declare base file (if altered by user)
-
-if [ "$BASECHANGE" ] ; then
+# check if base file exists and declare base file 
+if [ -f "$BASEFULL.lsd" ] ; then
 	echo "Base file is $BASE.lsd \n"
-fi
+else
+	echo "Selected file '$BASEFULL.lsd' does not exist. Please create file and rerun."
+	exit 3
+fi	
 
 # read all parameters in base file
 

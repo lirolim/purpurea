@@ -472,8 +472,9 @@ if [ "$RUN" ] ; then
 
 	# run simulation files
 
-	echo "\n Start simulation. \n "
-
+	echo "\n Start simulation. "
+	
+	STARTTIME=$(date +%s)
 
 	if [ "$RUNALL" ] ; then # if multiple experiments
 
@@ -513,7 +514,9 @@ if [ "$RUN" ] ; then
 
 	# create R report
 
-	echo "Finished simulation. R script will be processed... \n "
+	ENDTIME=$(date +%s)
+	echo "Finished simulation (total time: $(($ENDTIME - $STARTTIME)) sec.). R script will be processed... "
+
 	
 	# update information
 
@@ -547,5 +550,6 @@ if [ "$RUN" ] ; then
 
 			xdg-open "$BASEFULL"_mc_plots.pdf	
 	fi
+
 
 fi

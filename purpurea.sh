@@ -15,6 +15,7 @@ Help()
 	echo "\n -e: Edit a parameter value. Required argument: <parameter_name>. The program will show the current parameter value and will ask the user for its new value. In addition to editing the .lsd file, this option also saves the user's changes into .log file. After changing the file, the new information is shown - if there is a mistake, there may have been a mistake in the <parameter_name> entry. The exact name of the parameter is required: the program may find the parameter if the name is incomplete, but it will not change the parameter properly. For changing more than one parameter with the same command, use the -e <parameter_name> option multiple times. Note that the .lsd's definitions of parameters are not updated.   "
 	echo "\n -p: Alter number of simulation periods. Required argument: <max_period>"
 	echo "\n -m: Alter number of simulation runs (for MC analysis). Required argument: <number_mc>."
+	echo "\n -M: Advanced mode to run MC runs, in order to optimize the memory use (overwrites -m option). This option runs all files in the working directory. A single run in each .lsd file is set and the seed will be changed progressively until the number of MC runs is reached (the first seed value is the one in the original .lsd file, which can be changed through the -s option and can be different across the experiments). All .lsd files will have the same number of MC runs. Required argument: <number_mc>. Note that the log files will be overwritten by each simulation."
 	echo "\n -s: Alter initial seed. Required argument: <seed>."
 	echo "\n -u: Alter number of processing units to be used (default is the maximum number of processing units). Required argument: <number_cpus>. "
 	echo "\n -i: Interactive mode: create multiple .lsd files based on base file declared in '-b' (or default). The base file's name has to finish with '1' (eg. Sim1). Required argument: <number_experiments> (including the base file provided). If <number_experiments> is equal to one, no new file will be created, but the user may alter the base file. The user will be asked for the parameters to be altered and whether (s)he would like to alter the number of periods, the number of MC runs, or initial seed for each file (if different from default). All changes are saved in basename.log file."
@@ -22,9 +23,13 @@ Help()
 	echo "\n -r: Run a single simulation and create the R report. By default, this option runs the .lsd file declared in the -b option or, if -b is not used, the default .lsd file. "
 	echo "\n -R: Run all .lsd files in current directory or directory declared in -d option and create the R report. Note that R only works properly if the experiments share the same base name (eg. Sim), followed by an integer (eg. Sim1, Sim2). This option overwrites the -r option."
 	echo "\n -h: Help and quit."
-	echo "\n Regardless of the order in which the options listed above are included in the command, the program always executes the selected options in the following order: -h -d -b -u -a -c -e -p -m -s -i -n -r (or -R)."
+	echo "\n Regardless of the order in which the options listed above are included in the command, the program always executes the selected options in the following order: -h -d -b -u -a -c -e -p -m -s -i -n -r (or -R or -M)."
+	echo "\n -o: Running simulation 'online' (server): updates the system and installs required apps. Recompile model."
 	echo "\n Note that while this program makes the calibration and simulation processes in LSD more efficient, it does require a good knowledge of the model structure (described by the .lsd file) and its parameters. Thus, it is highly recommended that the user is familiarized with the LSD interface and that (s)he uses a repository (such as github) to track changes in the .lsd file. Note also that the program cannot create new variables or parameters in the .lsd file, it can only read the existing model structure and alter the parameter values."
 }
+
+
+
 
 ############################################################
 # Main program                                             #
@@ -45,16 +50,18 @@ PARAMCHANGE=
 PERIODS=
 SEED=
 MONTECARLO=
+MONTECARLOFAST=
 UNIT=$(nproc)
 EXPS=1
 RECOMPILE= 
 RUN=
 RUNALL=
 INTERACT=
+ONLINE=
 
 ### collect information from options and arguments in command ###
 
-while getopts "hd:b:u:ac:e:nm:p:s:i:rR" option; do # read options included in the command line, create a list and loop through the list 
+while getopts "hd:b:u:ac:e:nm:M:p:s:i:rRo" option; do # read options included in the command line, create a list and loop through the list 
 	case $option in 
 
 		h) # display help
@@ -97,11 +104,19 @@ while getopts "hd:b:u:ac:e:nm:p:s:i:rR" option; do # read options included in th
 		m) # update number of monte carlo runs
 			MONTECARLO=$OPTARG;;
 
+		M) # optimized monte carlo running mode (in order to reduce memory use)
+			MONTECARLOFAST=$OPTARG
+			RUN=1;;
+
 		p) # update number of periods in simulation
 			PERIODS=$OPTARG;;
 
 		s) # update initial seed
 			SEED=$OPTARG;;
+
+		o) # run online (will also recompile)
+			ONLINE=1
+			RECOMPILE=1;;
 	
 		\?) # invalid option
 		 	echo "Error: invalid option. Run -h option for help."
@@ -454,6 +469,12 @@ if [ "$INTERACT" ] ; then
 		fi
 fi
 
+# if running online: update and install required programs
+if [ "$ONLINE" ]; then
+	sudo apt update
+	sudo apt install -y make g++ zlib1g-dev mmv
+fi
+
 # recompile NW version of model
 
 if [ "$RECOMPILE" ] ; then
@@ -475,49 +496,127 @@ if [ "$RUN" ] ; then
 	echo "\n Start simulation. "
 	
 	STARTTIME=$(date +%s)
+	
+	if [ "$MONTECARLOFAST" ] ; then # if optimized running mode
 
-	if [ "$RUNALL" ] ; then # if multiple experiments
+		echo "\n Running in optimized memory mode. \n"
+		
+		if [ ! "$IBASEN" ] ; then # if base name for all files has not yet been declared
+
+			echo "\n Please type the base name for your .lsd files (just the part that is repeated in all files, without the number '1' or '.lsd').  The base file must already be included in the folder declared on '-d' option or in the current directory. 
+				\n Default option is 'Sim'. Press 'ENTER' to accept default option or type correct base name otherwise."
+
+			read IBASEN
+
+			if [ ! "$IBASEN" ] ; then
+				IBASEN="Sim"
+			fi
+		fi
 
 		if [ "$BASEDIR" ] ; then
 			EXPS=$(ls -lR $BASEDIR/*.lsd | wc -l) # count number of lsd files
 			
-			if [ "$EXPS" -eq 1 ] ; then		
-				BASE=$(basename "$BASEDIR"/*.lsd .lsd) # update base name
+			IBASEFULL="$BASEDIR/$IBASEN" # update complete address of base file
 
-				echo " \n Warning: Only one .lsd file available. Simulation will be treated as a single simulation for $BASE.lsd \n"
-
-				if [ "$BASEDIR" ] ; then
-					BASEFULL="$BASEDIR/$BASE" # update complete address of base file
-				fi
-			fi
-
-			make -f makefileRUN -j$UNIT FOLDER="$BASEDIR"
+			BASEFULL="$BASEDIR/$IBASEN"1
+			
 		else
 			EXPS=$(ls -lR *.lsd | wc -l) # count number of lsd files
-		
-			if [ "$EXPS" -eq 1 ] ; then		
-				BASE=$(basename *.lsd .lsd) # update base name
+				
+			IBASEFULL="$IBASEN"
 
-				echo " \n Warning: Only one .lsd file available. Simulation will be treated as a single simulation for $BASE.lsd \n"
-
-				if [ "$BASEDIR" ] ; then
-					BASEFULL="$BASEDIR/$BASE" # update complete address of base file
-				fi
-			fi
-
-			make -f makefileRUN -j$UNIT
+			BASEFULL="$IBASEN"1
 		fi
 
-	else
-		make -f makefileRUN -j$UNIT LSD="$BASEFULL.lsd" 
+		# alter information in files: single MC run for each
+
+			K=1
+			while [ $K -le $EXPS ] ; do # for each experiment, update seed value by adding one
+				sed -i -r "s/^(SIM_NUM) (.*)/SIM_NUM 1/" "$IBASEFULL$K.lsd"
+				K=$((K+1))
+			done
+
+		# run simulations
+
+			J=1
+			while [ $J -le $MONTECARLOFAST ] ; do
+
+				# alter seed value for each .lsd file
+				K=1
+				while [ $K -le $EXPS ] ; do # for each experiment, update seed value by adding one
+					if [ $J -ne 1 ] ;then # seed is updated only after the first run 
+						SEEDCURRENT=$(sed -n '/SEED/'p "$IBASEFULL$K.lsd" | awk '{print $NF}') 
+						SEEDNEW=$((SEEDCURRENT+1))
+						sed -i -r "s/^(SEED) (.*)/SEED $SEEDNEW/" "$IBASEFULL$K.lsd"
+					fi
+					
+					K=$((K+1))	
+				done		
+
+				# run simulation
+				if [ "$BASEDIR" ] ; then
+					make -f makefileRUN -j$UNIT FOLDER="$BASEDIR"
+				else
+					make -f makefileRUN -j$UNIT
+				fi
+
+				J=$((J+1))
+			done
+
+
+		# alter seed value back to original value
+	
+			K=1
+			while [ $K -le $EXPS ] ; do 
+				SEEDCURRENT=$(sed -n '/SEED/'p "$IBASEFULL$K.lsd" | awk '{print $NF}')
+				SEEDNEW=$((SEEDCURRENT-MONTECARLOFAST+1))
+				sed -i -r "s/^(SEED) (.*)/SEED $SEEDNEW/" "$IBASEFULL$K.lsd"
+				K=$((K+1))	
+			done		
+
+		# delete files with final values for each experiment
+
+			rm -r "$IBASEFULL"*.tot.gz
+
+	else	
+		if [ "$RUNALL" ] ; then # if multiple experiments
+
+			if [ "$BASEDIR" ] ; then
+				EXPS=$(ls -lR $BASEDIR/*.lsd | wc -l) # count number of lsd files
+				
+				if [ "$EXPS" -eq 1 ] ; then		
+					BASE=$(basename "$BASEDIR"/*.lsd .lsd) # update base name
+
+					echo " \n Warning: Only one .lsd file available. Simulation will be treated as a single simulation for $BASE.lsd \n"
+
+					BASEFULL="$BASEDIR/$BASE" # update complete address of base file
+				fi
+
+				make -f makefileRUN -j$UNIT FOLDER="$BASEDIR"
+			else
+				EXPS=$(ls -lR *.lsd | wc -l) # count number of lsd files
+			
+				if [ "$EXPS" -eq 1 ] ; then		
+					BASE=$(basename *.lsd .lsd) # update base name
+
+					echo " \n Warning: Only one .lsd file available. Simulation will be treated as a single simulation for $BASE.lsd \n"
+
+					BASEFULL="$BASE" # update complete address of base file
+				fi
+
+				make -f makefileRUN -j$UNIT
+			fi
+
+		else
+			make -f makefileRUN -j$UNIT LSD="$BASEFULL.lsd" 
+		fi
 	fi
 
 	# create R report
 
 	ENDTIME=$(date +%s)
 	echo "Finished simulation (total time: $(($ENDTIME - $STARTTIME)) sec.). R script will be processed... "
-
-	
+		
 	# update information
 
 		MONTECARLO=$(awk '/SIM_NUM/ {print $NF}' "$BASEFULL.lsd")
@@ -534,7 +633,7 @@ if [ "$RUN" ] ; then
 			xdg-open "$BASEFULL"_single_plots.pdf	
 	else
 			if [ "$EXPS" != 1 ] ; then # ask the user what is the base name used for the .lsd files (just the part that is kept in all files)
-				if [ "$INTERACT" ] ; then
+				if [ "$IBASEN" ] ; then # if base file has been declared (in interactive or optimized mode)
 					BASE=$IBASEN
 					BASEFULL="$BASEDIR/$BASE" # update complete address 
 				else

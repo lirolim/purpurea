@@ -292,6 +292,12 @@ if [ "$INTERACT" ] ; then
 		
 		read ICHANGE
 
+		while [ "$ICHANGE" != "y" -a  "$ICHANGE" != "Y" -a "$ICHANGE" != "n" -a "$ICHANGE" != "N"  -a -n "$ICHANGE" ]  ; do
+			echo -n "Please type a valid option [Y/n] \n"
+			read ICHANGE
+		done
+
+
 		while [ "$ICHANGE" = "y"  -o "$ICHANGE" = "Y" -o ! "$ICHANGE" ] ; do
 			
 			echo -n "\n Please type the complete parameter name: "
@@ -344,6 +350,11 @@ if [ "$INTERACT" ] ; then
 
 			echo -n "\n Would you like to alter another parameter in the files [Y/n]? \n"
 			read ICHANGE
+
+			while [ "$ICHANGE" != "y" -a  "$ICHANGE" != "Y" -a "$ICHANGE" != "n" -a "$ICHANGE" != "N"  -a -n "$ICHANGE" ]  ; do
+				echo -n "Please type a valid option [Y/n] \n"
+				read ICHANGE
+			done
 		done
 
 	# get periods to change
@@ -354,9 +365,14 @@ if [ "$INTERACT" ] ; then
 		echo -n "Would you like to alter the number of periods for the experiments [y/N]? \n"
 
 		read IPERIODS
+		while [ "$IPERIODS" != "y" -a  "$IPERIODS" != "Y" -a "$IPERIODS" != "n" -a "$IPERIODS" != "N"  -a -n "$IPERIODS" ]  ; do
+			echo -n "Please type a valid option [y/N] \n"
+			read IPERIODS
+		done
+
 
 		if [ "$IPERIODS" = "y" -o  "$IPERIODS" = "Y" ] ; then
-			echo -n "\n Please type the number of periods for each experiment (total of $INTERACT values, $IBASE.lsd included) or a single value (equal to all files): " 
+			echo -n "Please type the number of periods for each experiment (total of $INTERACT values, $IBASE.lsd included) or a single value (equal to all files): " 
 			read IPERIODSVALUE	
 							
 			while [ "$(echo "$IPERIODSVALUE" | wc -w)" -ne "$INTERACT" -a "$(echo "$IPERIODSVALUE" | wc -w)" -ne 1 ] ; do
@@ -393,9 +409,13 @@ if [ "$INTERACT" ] ; then
 		
 		echo -n "\n Current number of Monte Carlo runs is "
 		sed -n '/SIM_NUM/'p "$IBASEFULL$K.lsd" | awk '{print $NF}'
-		echo -n "Would you like to alter the number of MC runs for each experiment [y/N]? \n"
+		echo -n "Would you like to alter the number of MC runs for each experiment [y/N]? \n" 
 
-		read IMC 
+		read IMC
+		while [ "$IMC" != "y" -a  "$IMC" != "Y" -a "$IMC" != "n" -a "$IMC" != "N"  -a -n "$IMC" ]  ; do
+			echo -n "Please type a valid option [y/N] \n"
+			read IMC
+		done
 
 		if [ "$IMC" = "y" -o "$IMC" = "Y" ] ; then
 			echo -n "\n Please type the number of MC runs for each experiment (total of $INTERACT values, $IBASE.lsd included) or a single value (equal to all files): " 
@@ -435,6 +455,11 @@ if [ "$INTERACT" ] ; then
 		echo -n "Would you like to alter the initial seed for the experiments [y/N]? \n"
 
 		read ISEED
+		while [ "$ISEED" != "y" -a  "$ISEED" != "Y" -a "$ISEED" != "n" -a "$ISEED" != "N"  -a -n "$ISEED" ]  ; do
+			echo -n "Please type a valid option [y/N] \n"
+			read ISEED
+		done
+
 
 		if [ "$ISEED" = "y" -o  "$ISEED" = "Y" ] ; then
 			echo -n "\n Please type the initial seed for each experiment (total of $INTERACT values, $IBASE.lsd included) or a single value (equal to all files): " 

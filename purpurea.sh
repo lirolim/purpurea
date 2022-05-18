@@ -24,7 +24,7 @@ Help()
 	echo "\n -R: Run all .lsd files in current directory or directory declared in -d option and create the R report. Note that R only works properly if the experiments share the same base name (eg. Sim), followed by an integer (eg. Sim1, Sim2). This option overwrites the -r option."
 	echo "\n -h: Help and quit."
 	echo "\n Regardless of the order in which the options listed above are included in the command, the program always executes the selected options in the following order: -h -d -b -u -a -c -e -p -m -s -i -n -r (or -R or -M)."
-	echo "\n -o: Running simulation 'online' (server): updates the system and installs required apps. Recompile model."
+	echo "\n -o: Running simulation 'online' (server): updates the system and installs required apps. Recompile model. Sends notification when simulation finished."
 	echo "\n Note that while this program makes the calibration and simulation processes in LSD more efficient, it does require a good knowledge of the model structure (described by the .lsd file) and its parameters. Thus, it is highly recommended that the user is familiarized with the LSD interface and that (s)he uses a repository (such as github) to track changes in the .lsd file. Note also that the program cannot create new variables or parameters in the .lsd file, it can only read the existing model structure and alter the parameter values."
 }
 
@@ -292,6 +292,12 @@ if [ "$INTERACT" ] ; then
 		
 		read ICHANGE
 
+		while [ "$ICHANGE" != "y" -a  "$ICHANGE" != "Y" -a "$ICHANGE" != "n" -a "$ICHANGE" != "N"  -a -n "$ICHANGE" ]  ; do
+			echo -n "Please type a valid option [Y/n] \n"
+			read ICHANGE
+		done
+
+
 		while [ "$ICHANGE" = "y"  -o "$ICHANGE" = "Y" -o ! "$ICHANGE" ] ; do
 			
 			echo -n "\n Please type the complete parameter name: "
@@ -344,6 +350,11 @@ if [ "$INTERACT" ] ; then
 
 			echo -n "\n Would you like to alter another parameter in the files [Y/n]? \n"
 			read ICHANGE
+
+			while [ "$ICHANGE" != "y" -a  "$ICHANGE" != "Y" -a "$ICHANGE" != "n" -a "$ICHANGE" != "N"  -a -n "$ICHANGE" ]  ; do
+				echo -n "Please type a valid option [Y/n] \n"
+				read ICHANGE
+			done
 		done
 
 	# get periods to change
@@ -354,9 +365,14 @@ if [ "$INTERACT" ] ; then
 		echo -n "Would you like to alter the number of periods for the experiments [y/N]? \n"
 
 		read IPERIODS
+		while [ "$IPERIODS" != "y" -a  "$IPERIODS" != "Y" -a "$IPERIODS" != "n" -a "$IPERIODS" != "N"  -a -n "$IPERIODS" ]  ; do
+			echo -n "Please type a valid option [y/N] \n"
+			read IPERIODS
+		done
+
 
 		if [ "$IPERIODS" = "y" -o  "$IPERIODS" = "Y" ] ; then
-			echo -n "\n Please type the number of periods for each experiment (total of $INTERACT values, $IBASE.lsd included) or a single value (equal to all files): " 
+			echo -n "Please type the number of periods for each experiment (total of $INTERACT values, $IBASE.lsd included) or a single value (equal to all files): " 
 			read IPERIODSVALUE	
 							
 			while [ "$(echo "$IPERIODSVALUE" | wc -w)" -ne "$INTERACT" -a "$(echo "$IPERIODSVALUE" | wc -w)" -ne 1 ] ; do
@@ -393,9 +409,13 @@ if [ "$INTERACT" ] ; then
 		
 		echo -n "\n Current number of Monte Carlo runs is "
 		sed -n '/SIM_NUM/'p "$IBASEFULL$K.lsd" | awk '{print $NF}'
-		echo -n "Would you like to alter the number of MC runs for each experiment [y/N]? \n"
+		echo -n "Would you like to alter the number of MC runs for each experiment [y/N]? \n" 
 
-		read IMC 
+		read IMC
+		while [ "$IMC" != "y" -a  "$IMC" != "Y" -a "$IMC" != "n" -a "$IMC" != "N"  -a -n "$IMC" ]  ; do
+			echo -n "Please type a valid option [y/N] \n"
+			read IMC
+		done
 
 		if [ "$IMC" = "y" -o "$IMC" = "Y" ] ; then
 			echo -n "\n Please type the number of MC runs for each experiment (total of $INTERACT values, $IBASE.lsd included) or a single value (equal to all files): " 
@@ -435,6 +455,11 @@ if [ "$INTERACT" ] ; then
 		echo -n "Would you like to alter the initial seed for the experiments [y/N]? \n"
 
 		read ISEED
+		while [ "$ISEED" != "y" -a  "$ISEED" != "Y" -a "$ISEED" != "n" -a "$ISEED" != "N"  -a -n "$ISEED" ]  ; do
+			echo -n "Please type a valid option [y/N] \n"
+			read ISEED
+		done
+
 
 		if [ "$ISEED" = "y" -o  "$ISEED" = "Y" ] ; then
 			echo -n "\n Please type the initial seed for each experiment (total of $INTERACT values, $IBASE.lsd included) or a single value (equal to all files): " 
@@ -469,10 +494,29 @@ if [ "$INTERACT" ] ; then
 		fi
 fi
 
-# if running online: update and install required programs
+# if running online: update and install required programs [UNCOMMENT IF RUNNING IN CLOUD]
 if [ "$ONLINE" ]; then
 	sudo apt update
 	sudo apt install -y make g++ zlib1g-dev mmv
+fi
+
+# get name of simulation configuration for optimized Monte Carlo
+
+if [ "$MONTECARLOFAST" ] ; then # if optimized running mode
+
+	echo "\n Running in optimized memory mode. \n"
+	
+	if [ ! "$IBASEN" ] ; then # if base name for all files has not yet been declared
+
+		echo "\n Please type the base name for your .lsd files (just the part that is repeated in all files, without the number '1' or '.lsd').  The base file must already be included in the folder declared on '-d' option or in the current directory. 
+			\n Default option is 'Sim'. Press 'ENTER' to accept default option or type correct base name otherwise."
+
+		read IBASEN
+
+		if [ ! "$IBASEN" ] ; then
+			IBASEN="Sim"
+		fi
+	fi
 fi
 
 # recompile NW version of model
@@ -496,22 +540,8 @@ if [ "$RUN" ] ; then
 	echo "\n Start simulation. "
 	
 	STARTTIME=$(date +%s)
-	
+
 	if [ "$MONTECARLOFAST" ] ; then # if optimized running mode
-
-		echo "\n Running in optimized memory mode. \n"
-		
-		if [ ! "$IBASEN" ] ; then # if base name for all files has not yet been declared
-
-			echo "\n Please type the base name for your .lsd files (just the part that is repeated in all files, without the number '1' or '.lsd').  The base file must already be included in the folder declared on '-d' option or in the current directory. 
-				\n Default option is 'Sim'. Press 'ENTER' to accept default option or type correct base name otherwise."
-
-			read IBASEN
-
-			if [ ! "$IBASEN" ] ; then
-				IBASEN="Sim"
-			fi
-		fi
 
 		if [ "$BASEDIR" ] ; then
 			EXPS=$(ls -lR $BASEDIR/*.lsd | wc -l) # count number of lsd files
@@ -616,7 +646,7 @@ if [ "$RUN" ] ; then
 
 	ENDTIME=$(date +%s)
 	echo "Finished simulation (total time: $(($ENDTIME - $STARTTIME)) sec.). R script will be processed... "
-		
+	
 	# update information
 
 		MONTECARLO=$(awk '/SIM_NUM/ {print $NF}' "$BASEFULL.lsd")
@@ -630,7 +660,7 @@ if [ "$RUN" ] ; then
 
 			echo "Finished R report, PDF file will open."
 			
-			xdg-open "$BASEFULL"_single_plots.pdf	
+			evince "$BASEFULL"_single_plots.pdf	
 	else
 			if [ "$EXPS" != 1 ] ; then # ask the user what is the base name used for the .lsd files (just the part that is kept in all files)
 				if [ "$IBASEN" ] ; then # if base file has been declared (in interactive or optimized mode)
@@ -647,7 +677,7 @@ if [ "$RUN" ] ; then
 
 			echo "Finished R report, PDF file will open."
 
-			xdg-open "$BASEFULL"_mc_plots.pdf	
+			evince "$BASEFULL"_mc_plots.pdf	
 	fi
 
 

@@ -15,7 +15,7 @@ Help()
 	echo "\n -e: Edit a parameter value. Required argument: <parameter_name>. The program will show the current parameter value and will ask the user for its new value. In addition to editing the .lsd file, this option also saves the user's changes into .log file. After changing the file, the new information is shown - if there is a mistake, there may have been a mistake in the <parameter_name> entry. The exact name of the parameter is required: the program may find the parameter if the name is incomplete, but it will not change the parameter properly. For changing more than one parameter with the same command, use the -e <parameter_name> option multiple times. Note that the .lsd's definitions of parameters are not updated.   "
 	echo "\n -p: Alter number of simulation periods. Required argument: <max_period>"
 	echo "\n -m: Alter number of simulation runs (for MC analysis). Required argument: <number_mc>."
-	echo "\n -M: Advanced mode to run MC runs, in order to optimize the memory use (overwrites -m option). This option runs all files in the working directory. A single run in each .lsd file is set and the seed will be changed progressively until the number of MC runs is reached (the first seed value is the one in the original .lsd file, which can be changed through the -s option and can be different across the experiments). All .lsd files will have the same number of MC runs. Required argument: <number_mc>. Note that the log files will be overwritten by each simulation."
+	echo "\n -M: Advanced mode to run MC runs, in order to optimize the memory use (overwrites -m option). This option runs all files in the working directory. A single run in each .lsd file is set and the seed will be changed progressively until the number of MC runs is reached (the first seed value is equal to one). It also creates auxiliary files in order to run parallel simulations for the same configuration file and use all processing units in the computer, or the maximum declared in '-u'. All .lsd files will have the same number of MC runs. Required argument: <number_mc>. Note that the log files will be overwritten by each simulation."
 	echo "\n -s: Alter initial seed. Required argument: <seed>."
 	echo "\n -u: Alter number of processing units to be used (default is the maximum number of processing units). Required argument: <number_cpus>. "
 	echo "\n -i: Interactive mode: create multiple .lsd files based on base file declared in '-b' (or default). The base file's name has to finish with '1' (eg. Sim1). Required argument: <number_experiments> (including the base file provided). If <number_experiments> is equal to one, no new file will be created, but the user may alter the base file. The user will be asked for the parameters to be altered and whether (s)he would like to alter the number of periods, the number of MC runs, or initial seed for each file (if different from default). All changes are saved in basename.log file."
@@ -160,12 +160,14 @@ fi
 if [ "$PARAMCONSULT" ] ; then
 	
 	for param in $PARAMCONSULT ; do
+
+		paramshort=$(echo $param| cut -b -22) # agrep has a limit in the number of characters: only characters up to this limit are selected
+ 		
+		PARAMMATCH=$(( $(agrep -1 -c "<Param:>;$paramshort" "$BASEFULL.lsd") / 2 )) # find number of parameters (divided by 2 because 'Param:' appears twice"
 		
-		PARAMMATCH=$(( $(agrep -1 -c "<Param:>;$param" "$BASEFULL.lsd") / 2 )) # find number of parameters (divided by 2 because 'Param:' appears twice"
+		echo "Searching for parameter names with '$paramshort': $PARAMMATCH parameters found."
 		
-		echo "Searching for parameter names with '$param': $PARAMMATCH parameters found."
-		
-		agrep -1 "<Param:>;$param" "$BASEFULL.lsd" | tail -"$PARAMMATCH"
+		agrep -1 "<Param:>;$paramshort" "$BASEFULL.lsd" | tail -"$PARAMMATCH"
 		echo "\n"
 	done
 fi
@@ -200,7 +202,24 @@ if [ "$PARAMCHANGE" ] ; then
 			DATE=$(date)
 			echo "$DATE | $CURRENT | Altered to: $VALUE" >> "$BASEFULL.log"
 		else
-			echo "Parameter '$param' not found! Please run -e with the correct and complete parameter name. To check a parameter's name, use option -a (all parameters) or option -c <parameter_name>."
+			echo "Parameter '$param' not found! Please run -e with the correct and complete parameter name."
+
+			paramshort=$(echo $param| cut -b -22) # agrep has a limit in the number of characters: only characters up to this limit are selected
+ 		
+			PARAMMATCH=$(( $(agrep -1 -c "<Param:>;$paramshort" "$BASEFULL.lsd") / 2 )) # find number of parameters (divided by 2 because 'Param:' appears twice"
+
+			if [ $PARAMMATCH -gt 0 ] ; then
+				echo "\n"
+
+				echo "Similar options found:"
+			
+				agrep -1 "<Param:>;$paramshort" "$BASEFULL.lsd" | tail -"$PARAMMATCH"
+
+				echo "\n"
+			else
+				echo "To check a parameter's name, use option -a (all parameters) or option -c <parameter_name>."
+			fi
+
 			exit 3
 		fi 
 	done
@@ -495,10 +514,10 @@ if [ "$INTERACT" ] ; then
 fi
 
 # if running online: update and install required programs [UNCOMMENT IF RUNNING IN CLOUD]
-if [ "$ONLINE" ]; then
-	sudo apt update
-	sudo apt install -y make g++ zlib1g-dev mmv
-fi
+# if [ "$ONLINE" ]; then
+# 	sudo apt update
+# 	sudo apt install -y make g++ zlib1g-dev mmv
+# fi
 
 # get name of simulation configuration for optimized Monte Carlo
 
@@ -506,9 +525,15 @@ if [ "$MONTECARLOFAST" ] ; then # if optimized running mode
 
 	echo "\n Running in optimized memory mode. \n"
 	
+	if [ ! "$BASEDIR" ] ; then
+		echo "\n Error: I cannot run the optimized mode without a directory. Please rerun with option '-d'."
+
+		exit 3
+	fi
+
 	if [ ! "$IBASEN" ] ; then # if base name for all files has not yet been declared
 
-		echo "\n Please type the base name for your .lsd files (just the part that is repeated in all files, without the number '1' or '.lsd').  The base file must already be included in the folder declared on '-d' option or in the current directory. 
+		echo "\n Please type the base name for your .lsd files (just the part that is repeated in all files, without the number '1' or '.lsd').  The base file must already be included in the folder declared on '-d' option. 
 			\n Default option is 'Sim'. Press 'ENTER' to accept default option or type correct base name otherwise."
 
 		read IBASEN
@@ -518,6 +543,7 @@ if [ "$MONTECARLOFAST" ] ; then # if optimized running mode
 		fi
 	fi
 fi
+
 
 # recompile NW version of model
 
@@ -529,6 +555,8 @@ if [ "$RECOMPILE" ] ; then
 	set -e # errors will exit script
 
 	make -f makefileNW -j$UNIT
+
+	set +e
 fi
 
 # runs simulation
@@ -540,7 +568,7 @@ if [ "$RUN" ] ; then
 	echo "\n Start simulation. "
 	
 	STARTTIME=$(date +%s)
-
+	
 	if [ "$MONTECARLOFAST" ] ; then # if optimized running mode
 
 		if [ "$BASEDIR" ] ; then
@@ -566,18 +594,62 @@ if [ "$RUN" ] ; then
 				K=$((K+1))
 			done
 
+		# create copy of files in order to use all processing units
+
+			MCUNITS=$((UNIT/EXPS)) # units per experiment (number of files)
+
+			MCUNITS=$((MCUNITS<MONTECARLOFAST ? MCUNITS : MONTECARLOFAST))
+
+			MCRUNS=$((MONTECARLOFAST%MCUNITS > 0 ? MONTECARLOFAST/MCUNITS+1 : MONTECARLOFAST/MCUNITS)) # runs per file (djust to guarantee that all MC runs will be simulated)
+
+			MCUNITS=$((MONTECARLOFAST%MCRUNS > 0 ? MONTECARLOFAST/MCRUNS+1 : MONTECARLOFAST/MCRUNS)) # correct units per experiment (optimized). It is aslso the number of simulation files per simulation configuration.
+			
+			echo "\n Optimized mode: each simulation configuration is simulated in $MCUNITS processing units ( running $MCRUNS times each)"
+
+			K=1
+			while [ $K -le $EXPS ] ; do # for each experiment, create copies of files and alter seed
+
+				J=1
+
+				SIMSEED=1
+
+				SIMS=$MCRUNS 
+				
+				while [ $J -le $MCUNITS ]; do
+					cp  "$BASEDIR/$IBASEN$K.lsd"  "$BASEDIR/$J$IBASEN$K.lsd"
+
+					sed -i -r "s/^(SEED) (.*)/SEED $SIMSEED/" "$BASEDIR/$J$IBASEN$K.lsd"
+
+					SIMSEED=$((SIMSEED+MCRUNS))					
+
+					SIMS="$SIMS $MCRUNS" 
+
+					J=$((J+1))
+				done
+
+				rm 	"$BASEDIR/$IBASEN$K.lsd" 
+
+				K=$((K+1))
+			done	
+
+
 		# run simulations
 
 			J=1
-			while [ $J -le $MONTECARLOFAST ] ; do
+			while [ $J -le $MCRUNS ] ; do
+				echo "\n --- Run $J"
 
 				# alter seed value for each .lsd file
 				K=1
 				while [ $K -le $EXPS ] ; do # for each experiment, update seed value by adding one
 					if [ $J -ne 1 ] ;then # seed is updated only after the first run 
-						SEEDCURRENT=$(sed -n '/SEED/'p "$IBASEFULL$K.lsd" | awk '{print $NF}') 
-						SEEDNEW=$((SEEDCURRENT+1))
-						sed -i -r "s/^(SEED) (.*)/SEED $SEEDNEW/" "$IBASEFULL$K.lsd"
+						Y=1
+						while [ $Y -le $MCUNITS ]; do
+							SEEDCURRENT=$(sed -n '/SEED/'p "$BASEDIR/$Y$IBASEN$K.lsd" | awk '{print $NF}') 
+							SEEDNEW=$((SEEDCURRENT+1))
+							sed -i -r "s/^(SEED) (.*)/SEED $SEEDNEW/" "$BASEDIR/$Y$IBASEN$K.lsd"
+							Y=$((Y+1))
+						done
 					fi
 					
 					K=$((K+1))	
@@ -594,20 +666,56 @@ if [ "$RUN" ] ; then
 			done
 
 
+		# rename files
+
+			K=1
+			while [ $K -le $EXPS ] ; do # for each experiment, create copies of files and alter seed
+				
+				J=1
+				X=1
+				
+				while [ $J -le $MCUNITS ]; do
+
+					Y=1
+					while [ $Y -le $MCRUNS ]; do
+
+						if [ $X -gt $MONTECARLOFAST ]; then
+							rm "$BASEDIR/$J$IBASEN$K"_"$X.res.gz"  # remove excess files
+						else
+							mv "$BASEDIR/$J$IBASEN$K"_"$X.res.gz"  "$BASEDIR/$IBASEN$K"_"$X.res.gz"
+						fi
+
+						
+						Y=$((Y+1))
+						X=$((X+1))
+					done
+
+
+					if [ $J -ne 1 ]; then
+						rm "$BASEDIR/$J$IBASEN$K.lsd"
+					else
+						mv "$BASEDIR/$J$IBASEN$K.lsd"  "$BASEDIR/$IBASEN$K.lsd"  
+					fi
+
+					J=$((J+1))
+
+				done
+
+				K=$((K+1))	
+
+			done	
+
 		# alter seed value back to original value
 	
 			K=1
 			while [ $K -le $EXPS ] ; do 
 				SEEDCURRENT=$(sed -n '/SEED/'p "$IBASEFULL$K.lsd" | awk '{print $NF}')
-				SEEDNEW=$((SEEDCURRENT-MONTECARLOFAST+1))
+				SEEDNEW=$((SEEDCURRENT-MCRUNS+1))
 				sed -i -r "s/^(SEED) (.*)/SEED $SEEDNEW/" "$IBASEFULL$K.lsd"
 				K=$((K+1))	
 			done		
 
-		# delete files with final values for each experiment
-
-			rm -r "$IBASEFULL"*.tot.gz
-
+			RUNS=$MONTECARLOFAST
 	else	
 		if [ "$RUNALL" ] ; then # if multiple experiments
 
@@ -638,24 +746,28 @@ if [ "$RUN" ] ; then
 			fi
 
 		else
+			set -e # stop running in case of error
 			make -f makefileRUN -j$UNIT LSD="$BASEFULL.lsd" 
+			set +e
 		fi
-	fi
 
+		RUNS=$(awk '/SIM_NUM/ {print $NF}' "$BASEFULL.lsd")
+	fi
+	
+	# delete files with final values for each experiment
+
+	rm -r "$BASEDIR/"*.tot.gz
+	
 	# create R report
 
 	ENDTIME=$(date +%s)
 	echo "Finished simulation (total time: $(($ENDTIME - $STARTTIME)) sec.). R script will be processed... "
-	
-	# update information
-
-		MONTECARLO=$(awk '/SIM_NUM/ {print $NF}' "$BASEFULL.lsd")
-		SEED=$(awk '/SEED/ {print $NF}' "$BASEFULL.lsd")
-
-
+		
 	# create R report
 
-	if [ "$EXPS" -eq 1 -a "$MONTECARLO" -eq 1 ] ; then
+	if [ "$EXPS" -eq 1 -a "$RUNS" -eq 1 ] ; then
+			SEED=$(awk '/SEED/ {print $NF}' "$BASEFULL.lsd")
+			
 			Rscript analysis_results_single.R $PWD $BASE $SEED $BASEDIR 
 
 			echo "Finished R report, PDF file will open."

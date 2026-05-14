@@ -10,6 +10,7 @@ Help()
 	echo "This program reads and edits parameter values in .lsd files, runs the simulation, and creates a PDF report using R. These are the program's options: \n"
 	echo "\n -b: Alter base name for .lsd file (default is Sim1). The .lsd termination must not be included."
 	echo "\n -d: Alter directory in which .lsd is saved (default is current directory). The simulation results and R report will be saved in this directory (if -r or -R options are enabled)."
+	echo "\n -f: Find all places where a given text (for instance, variable or parameter) appears in the code. Required argument: <text>. The search will consider only cpp or hpp files (.lsd files will not be considered)."
 	echo "\n -a: Read the .lsd file (all parameters). All parameters and variables will be listed. Information on simulation setting (number of simulations, seed and number of periods) is also displayed."
 	echo "\n -c: Consult specific parameter by providing its complete name or part of its name. Required argument: <parameter_name>. Parameters that have an approximate correspondence to the pattern provided will also be listed (max 1 divergence).  For consulting more than one parameter at the same time, use the -c <parameter_name> option multiple times. This option requires the agrep command to be installed, if otherwise, an error message will appear and instructions for installing the command will be displayed."
 	echo "\n -e: Edit a parameter value. Required argument: <parameter_name>. The program will show the current parameter value and will ask the user for its new value. In addition to editing the .lsd file, this option also saves the user's changes into .log file. After changing the file, the new information is shown - if there is a mistake, there may have been a mistake in the <parameter_name> entry. The exact name of the parameter is required: the program may find the parameter if the name is incomplete, but it will not change the parameter properly. For changing more than one parameter with the same command, use the -e <parameter_name> option multiple times. Note that the .lsd's definitions of parameters are not updated.   "
@@ -45,6 +46,7 @@ BASECHANGE=
 BASEDIR=
 READBASE=
 CURRENT=
+FIND=
 PARAMCONSULT=
 PARAMCHANGE= 
 PERIODS=
@@ -61,7 +63,7 @@ ONLINE=
 
 ### collect information from options and arguments in command ###
 
-while getopts "hd:b:u:ac:e:nm:M:p:s:i:rRo" option; do # read options included in the command line, create a list and loop through the list 
+while getopts "hd:b:u:f:ac:e:nm:M:p:s:i:rRo" option; do # read options included in the command line, create a list and loop through the list 
 	case $option in 
 
 		h) # display help
@@ -78,6 +80,9 @@ while getopts "hd:b:u:ac:e:nm:M:p:s:i:rRo" option; do # read options included in
 
 		u) # alter number of processing units
 			UNIT=$OPTARG;;
+
+		f) # consult specific text in code (for instance, variable or parameter)
+			FIND=$OPTARG;;
 
 		a) # read all parameters
 			READBASE=1;;
@@ -146,6 +151,18 @@ else
 	echo "Selected file '$BASEFULL.lsd' does not exist. Please create file and rerun."
 	exit 3
 fi	
+
+# find specific text in code 
+
+if [ "$FIND" ] ; then
+	echo "Finding all places where '$FIND' appears in the code (only cpp and hpp files are considered, .lsd files are not considered): \n"
+	   grep -rnw \
+        --include="*.cpp" \
+        --include="*.hpp" \
+        . \
+        -e "$FIND"
+	echo "\n"
+fi
 
 # read all parameters in base file
 
@@ -513,11 +530,11 @@ if [ "$INTERACT" ] ; then
 		fi
 fi
 
-# if running online: update and install required programs [UNCOMMENT IF RUNNING IN CLOUD]
-# if [ "$ONLINE" ]; then
-# 	sudo apt update
-# 	sudo apt install -y make g++ zlib1g-dev mmv
-# fi
+# if running online: update and install required programs  
+if [ "$ONLINE" ]; then
+ 	sudo apt update
+ 	sudo apt install -y make g++ zlib1g-dev mmv
+fi
 
 # get name of simulation configuration for optimized Monte Carlo
 
